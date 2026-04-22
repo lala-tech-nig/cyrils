@@ -1,0 +1,246 @@
+.posContainer {
+  display: flex;
+  gap: 2rem;
+  height: calc(100vh - 4rem);
+}
+
+.menuSection {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.8rem;
+  color: var(--text-dark);
+}
+
+.shiftBtn {
+  background-color: var(--text-dark);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-weight: bold;
+}
+
+.menuGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}
+
+.menuCard {
+  background-color: var(--bg-white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: var(--transition);
+  text-align: center;
+}
+
+.menuCard:hover {
+  border-color: var(--primary-green);
+  transform: translateY(-2px);
+}
+
+.menuItemName {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.menuItemPrice {
+  color: var(--primary-orange);
+  font-weight: bold;
+}
+
+/* Cart Section */
+.cartSection {
+  flex: 1;
+  background-color: var(--bg-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+}
+
+.cartTitle {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.cartItems {
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cartItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.qtyControl {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qtyBtn {
+  background-color: var(--bg-light);
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+}
+
+.cartSummary {
+  margin-top: 1rem;
+  border-top: 2px dashed var(--border-color);
+  padding-top: 1rem;
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primary-orange);
+  margin-bottom: 1.5rem;
+}
+
+.paymentMethods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.payBtn {
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-light);
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+.payBtn.selected {
+  background-color: var(--primary-green);
+  color: white;
+  border-color: var(--primary-green);
+}
+
+.prSection {
+  margin-top: 0.5rem;
+}
+
+.prInput {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 0.5rem;
+}
+
+.checkoutBtn {
+  width: 100%;
+  font-size: 1.2rem;
+  padding: 1rem;
+}
+
+/* Modal and Print */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background: white;
+  padding: 2rem;
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 400px;
+}
+
+/* Receipt Styles */
+.receipt {
+  font-family: monospace;
+  color: black;
+  text-align: center;
+}
+
+.receipt h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+}
+
+.receipt p {
+  margin: 0.2rem 0;
+  font-size: 0.9rem;
+}
+
+.receiptDivider {
+  border-bottom: 1px dashed black;
+  margin: 0.5rem 0;
+}
+
+.receiptTable {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.receiptTable th, .receiptTable td {
+  padding: 0.2rem 0;
+}
+
+.receiptTable .textRight {
+  text-align: right;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printArea, .printArea * {
+    visibility: visible;
+  }
+  .printArea {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 10px;
+  }
+}
