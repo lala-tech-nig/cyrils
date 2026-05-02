@@ -60,6 +60,12 @@ app.get('/', (req, res) => {
   res.send('Cyrils Foods API is running');
 });
 
+// 404 Handler
+app.use((req, res, next) => {
+  console.log(`404 NOT FOUND: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+});
+
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error('GLOBAL ERROR:', err);

@@ -14,7 +14,7 @@ const storage = new CloudinaryStorage({
   }
 });
 
-const upload = multer({ storage: storage });
+const promoUpload = multer({ storage: storage });
 
 // GET all promotions (Public)
 router.get('/', async (req, res) => {
@@ -37,7 +37,7 @@ router.get('/all', protect, authorize('SuperAdmin', 'Manager'), async (req, res)
 });
 
 // POST create promotion
-router.post('/', protect, authorize('SuperAdmin', 'Manager'), upload.single('image'), async (req, res) => {
+router.post('/', protect, authorize('SuperAdmin', 'Manager'), promoUpload.single('image'), async (req, res) => {
   try {
     const { title, description, order } = req.body;
     const newPromo = new Promotion({
