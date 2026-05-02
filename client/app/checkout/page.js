@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useRouter } from 'next/navigation';
+import api from '../../lib/api';
 import styles from './page.module.css';
 
 export default function CheckoutPage() {
@@ -35,13 +36,9 @@ export default function CheckoutPage() {
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/orders/online', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData)
-      });
+      const res = await api.post('/orders/online', orderData);
 
-      if (res.ok) {
+      if (res.status === 201) {
         clearCart();
         // Redirect to WhatsApp
         const waMessage = `Hello Cyril's Foods! I just placed an order for ${customerName}. Total: ₦${totalAmount}.`;

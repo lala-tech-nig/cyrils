@@ -51,9 +51,22 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/stats', require('./routes/stats'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/promotions', require('./routes/promotions'));
+app.use('/api/transfers', require('./routes/transfers'));
 
 app.get('/', (req, res) => {
   res.send('Cyrils Foods API is running');
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('GLOBAL ERROR:', err);
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal Server Error',
+    error: process.env.NODE_ENV === 'development' ? err : {}
+  });
 });
 
 const PORT = process.env.PORT || 5000;

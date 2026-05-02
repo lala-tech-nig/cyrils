@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import Link from 'next/link';
 
+import api from '../../lib/api';
+
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -20,45 +22,64 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
-    try {
-      const res = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
+    // 1. Get Location
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser');
+      setIsLoading(false);
+      return;
+    }
 
-      const data = await res.json();
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
 
-      if (res.ok) {
-        login(data.user, data.token);
-        
+      try {
+        // 2. Perform Auth Login
+        const loginRes = await api.post('/auth/login', { username, password });
+        const loginData = loginRes.data;
+
+        // 3. Perform Attendance Check-in (Geofencing is handled on server side)
+        try {
+          await api.post('/attendance/check-in', { lat: latitude, lng: longitude }, {
+            headers: { Authorization: `Bearer ${loginData.token}` }
+          });
+        } catch (attErr) {
+          setError(attErr.response?.data?.message || 'Attendance Check-in Failed');
+          setIsLoading(false);
+          return;
+        }
+
+        login(loginData.user, loginData.token);
+          
         // Redirect based on role
-        if (data.user.role === 'SuperAdmin' || data.user.role === 'Manager') {
+        if (loginData.user.role === 'SuperAdmin' || loginData.user.role === 'Manager') {
           router.push('/dashboard/manager');
-        } else if (data.user.role === 'Sales') {
+        } else if (loginData.user.role === 'Sales') {
           router.push('/dashboard/pos');
-        } else if (data.user.role === 'Kitchen') {
+        } else if (loginData.user.role === 'Kitchen') {
           router.push('/dashboard/kitchen');
-        } else if (data.user.role === 'Store') {
+        } else if (loginData.user.role === 'Store') {
           router.push('/dashboard/store');
         } else {
-          router.push('/dashboard/attendance'); // default fallback
+          router.push('/dashboard/attendance');
         }
-      } else {
-        setError(data.message || 'Invalid login credentials');
+      } catch (err) {
+        console.error(err);
+        setError(err.response?.data?.message || 'Server Error. Try again.');
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-      setError('Server Error. Try again.');
-    } finally {
+    }, (err) => {
+      setError('Please enable location access to log in.');
       setIsLoading(false);
-    }
+    });
   };
 
   return (
     <div className={styles.container}>
       <div className={styles.loginCard}>
-        <Link href="/" className={styles.logo}>🍲 Cyril's Foods</Link>
+        <Link href="/" className={styles.logo}>
+          <img src="/logo.png" alt="Cyril's Foods Logo" style={{ width: '150px', marginBottom: '1rem' }} />
+        </Link>
         <form className={styles.form} onSubmit={handleLogin}>
           <div className={styles.inputGroup}>
             <label>Username</label>

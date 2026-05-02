@@ -2,28 +2,80 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../../../context/AppContext';
+import { useSearchParams } from 'next/navigation';
+import api from '../../../lib/api';
 import styles from './page.module.css';
 
 export default function POSPage() {
   const { user } = useAppContext();
+  const searchParams = useSearchParams();
+  const activeView = searchParams.get('view') || 'Main';
+  
   const [products, setProducts] = useState([]);
   const [posCart, setPosCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [prComment, setPrComment] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastOrder, setLastOrder] = useState(null);
+  const [settings, setSettings] = useState(null);
+  
+  const [orders, setOrders] = useState([]);
+  const [historyFilter, setHistoryFilter] = useState('Today');
   
   const receiptRef = useRef(null);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/products')
-      .then(res => res.json())
-      .then(data => setProducts(data))
-      .catch(err => {
-        console.error('Failed to fetch POS products', err);
-        setProducts([]);
-      });
+    fetchData();
   }, []);
+
+  useEffect(() => {
+    if (activeView === 'History') {
+      fetchFilteredOrders('Today');
+    }
+  }, [activeView]);
+
+  const fetchData = async () => {
+    try {
+      const [prodRes, settRes, orderRes] = await Promise.all([
+        api.get('/products'),
+        api.get('/settings'),
+        api.get('/orders')
+      ]);
+      setProducts(prodRes.data);
+      setSettings(settRes.data);
+      setOrders(orderRes.data);
+    } catch (err) {
+      console.error('Failed to fetch POS data', err);
+    }
+  };
+
+  const fetchFilteredOrders = async (filter) => {
+    setHistoryFilter(filter);
+    let startDate = new Date();
+    startDate.setHours(0,0,0,0);
+    
+    if (filter === 'Week') {
+      startDate.setDate(startDate.getDate() - 7);
+    } else if (filter === 'Month') {
+      startDate.setMonth(startDate.getMonth() - 1);
+    }
+    
+    try {
+      const res = await api.get(`/orders?startDate=${startDate.toISOString()}`);
+      setOrders(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const updateOrderStatus = async (id, status) => {
+    try {
+      await api.put(`/orders/${id}/status`, { status });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const addToPosCart = (product) => {
     setPosCart(prev => {
@@ -57,129 +109,257 @@ export default function POSPage() {
     }
 
     const orderData = {
-      orderType: 'WalkIn',
+      orderType: activeView === 'Main' ? 'WalkIn' : activeView,
       items: posCart.map(item => ({ product: item._id, quantity: item.quantity, priceAtTime: item.price })),
       totalAmount,
       status: 'Completed',
       paymentMethod,
       prComment: paymentMethod === 'PR' ? prComment : '',
-      salesPerson: user?.id,
       salesPersonName: user?.username || 'Unknown Staff'
     };
 
-    // Real API call here
-    // try { await fetch(...) } catch (e) {}
-
-    // Mock successful order for demo
-    const completedOrder = {
-      ...orderData,
-      id: Math.random().toString(36).substr(2, 9),
-      date: new Date().toLocaleString(),
-      items: posCart
-    };
-
-    setLastOrder(completedOrder);
-    setShowReceipt(true);
+    try {
+      const res = await api.post('/orders', orderData);
+      const savedOrder = res.data;
+      
+      setLastOrder({
+        ...savedOrder,
+        items: posCart,
+        date: new Date(savedOrder.createdAt).toLocaleString()
+      });
+      setShowReceipt(true);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save order');
+    }
   };
 
   const printReceipt = () => {
     window.print();
-    // After printing, clear cart and close modal
     setPosCart([]);
     setPrComment('');
     setShowReceipt(false);
   };
 
+  const handleCloseShift = async () => {
+    if (!confirm('Are you sure you want to close your shift and end attendance?')) return;
+    try {
+      await api.post('/attendance/check-out');
+      alert('Shift closed and attendance ended successfully.');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error closing shift');
+    }
+  };
+
   return (
     <div className={styles.posContainer}>
-      {/* Menu Section */}
-      <div className={styles.menuSection}>
-        <div className={styles.header}>
-          <h1 className={styles.title}>Walk-in Orders</h1>
-          <button className={styles.shiftBtn}>Close Shift</button>
-        </div>
-        
-        <div className={styles.menuGrid}>
-          {products.map(product => (
-            <div key={product._id} className={styles.menuCard} onClick={() => addToPosCart(product)}>
-              <div className={styles.menuItemName}>{product.name}</div>
-              <div className={styles.menuItemPrice}>₦{product.price}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Cart Section */}
-      <div className={styles.cartSection}>
-        <h2 className={styles.cartTitle}>Current Order</h2>
-        
-        <div className={styles.cartItems}>
-          {posCart.length === 0 && <p style={{color: '#999', textAlign:'center'}}>Cart is empty</p>}
-          {posCart.map(item => (
-            <div key={item._id} className={styles.cartItem}>
-              <div>
-                <div style={{fontWeight: 'bold'}}>{item.name}</div>
-                <div style={{fontSize: '0.9rem', color: '#666'}}>₦{item.price}</div>
+        {activeView === 'Main' && (
+          <>
+            {/* Menu Section */}
+            <div className={styles.menuSection}>
+              <div className={styles.header}>
+                <h1 className={styles.title}>Walk-in Orders</h1>
+                <button className={styles.shiftBtn} onClick={handleCloseShift}>Close Shift</button>
               </div>
-              <div className={styles.qtyControl}>
-                <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, -1)}>-</button>
-                <span>{item.quantity}</span>
-                <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, 1)}>+</button>
+              
+              <div className={styles.menuGrid}>
+                {products.map(product => (
+                  <div key={product._id} className={styles.menuCard} onClick={() => addToPosCart(product)}>
+                    {product.imageUrl && (
+                      <div 
+                        style={{ 
+                          height: '100px', 
+                          width: '100%', 
+                          backgroundImage: `url(${product.imageUrl})`, 
+                          backgroundSize: 'cover', 
+                          backgroundPosition: 'center',
+                          borderRadius: '4px',
+                          marginBottom: '0.5rem'
+                        }} 
+                      />
+                    )}
+                    {!product.imageUrl && (
+                      <div 
+                        style={{ 
+                          height: '100px', 
+                          width: '100%', 
+                          backgroundColor: '#f3f4f6', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          borderRadius: '4px',
+                          marginBottom: '0.5rem',
+                          color: '#9ca3af',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        No Image
+                      </div>
+                    )}
+                    <div className={styles.menuItemName}>{product.name}</div>
+                    <div className={styles.menuItemPrice}>₦{product.price}</div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
 
-        <div className={styles.cartSummary}>
-          <div className={styles.totalRow}>
-            <span>Total</span>
-            <span>₦{totalAmount}</span>
-          </div>
+            {/* Cart Section */}
+            <div className={styles.cartSection}>
+              <h2 className={styles.cartTitle}>Current Order</h2>
+              
+              <div className={styles.cartItems}>
+                {posCart.length === 0 && <p style={{color: '#999', textAlign:'center'}}>Cart is empty</p>}
+                {posCart.map(item => (
+                  <div key={item._id} className={styles.cartItem}>
+                    <div>
+                      <div style={{fontWeight: 'bold'}}>{item.name}</div>
+                      <div style={{fontSize: '0.9rem', color: '#666'}}>₦{item.price}</div>
+                    </div>
+                    <div className={styles.qtyControl}>
+                      <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, -1)}>-</button>
+                      <span>{item.quantity}</span>
+                      <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, 1)}>+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-          <div className={styles.paymentMethods}>
-            {['Cash', 'Card', 'Transfer', 'PR'].map(method => (
-              <button 
-                key={method}
-                className={`${styles.payBtn} ${paymentMethod === method ? styles.selected : ''}`}
-                onClick={() => setPaymentMethod(method)}
-              >
-                {method}
-              </button>
-            ))}
-          </div>
+              <div className={styles.cartSummary}>
+                <div className={styles.totalRow}>
+                  <span>Total</span>
+                  <span>₦{totalAmount}</span>
+                </div>
 
-          {paymentMethod === 'PR' && (
-            <div className={styles.prSection}>
-              <input 
-                type="text" 
-                className={styles.prInput} 
-                placeholder="PR Comment (e.g. MD)"
-                value={prComment}
-                onChange={e => setPrComment(e.target.value)}
-              />
-              <small style={{color: '#eab308'}}>Requires Manager Approval later</small>
+                <div className={styles.paymentMethods}>
+                  {['Cash', 'Card', 'Transfer', 'PR'].map(method => (
+                    <button 
+                      key={method}
+                      className={`${styles.payBtn} ${paymentMethod === method ? styles.selected : ''}`}
+                      onClick={() => setPaymentMethod(method)}
+                    >
+                      {method}
+                    </button>
+                  ))}
+                </div>
+
+                {paymentMethod === 'PR' && (
+                  <div className={styles.prSection}>
+                    <input 
+                      type="text" 
+                      className={styles.prInput} 
+                      placeholder="PR Comment (e.g. MD)"
+                      value={prComment}
+                      onChange={e => setPrComment(e.target.value)}
+                    />
+                    <small style={{color: '#eab308'}}>Requires Manager Approval later</small>
+                  </div>
+                )}
+
+                <button 
+                  className={`btn-primary ${styles.checkoutBtn}`} 
+                  onClick={handleCheckout}
+                  disabled={posCart.length === 0}
+                >
+                  Confirm & Print Receipt
+                </button>
+              </div>
             </div>
-          )}
+          </>
+        )}
 
-          <button 
-            className={`btn-primary ${styles.checkoutBtn}`} 
-            onClick={handleCheckout}
-            disabled={posCart.length === 0}
-          >
-            Confirm & Print Receipt
-          </button>
-        </div>
-      </div>
+        {(activeView === 'Website' || activeView === 'Glovo' || activeView === 'Chowdeck') && (
+          <div className={styles.fullView}>
+            <h1 className={styles.title}>{activeView} Orders</h1>
+            <div className={styles.orderGrid}>
+              {orders.filter(o => o.orderType === (activeView === 'Website' ? 'Online' : activeView)).map(order => (
+                <div key={order._id} className={styles.orderCard}>
+                  <div className={styles.orderHeader}>
+                    <span className={styles.orderId}>Order #{order._id.slice(-6)}</span>
+                    <span className={`${styles.orderStatus} ${styles[order.status]}`}>{order.status}</span>
+                  </div>
+                  <div className={styles.orderInfo}>
+                    <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
+                    <p><strong>Phone:</strong> {order.customerPhone || 'N/A'}</p>
+                    <p><strong>Total:</strong> ₦{order.totalAmount}</p>
+                  </div>
+                  <div className={styles.orderItems}>
+                    {order.items.map((item, i) => (
+                      <div key={i}>{item.product?.name} x {item.quantity}</div>
+                    ))}
+                  </div>
+                  {order.status === 'Pending' && (
+                    <div className={styles.orderActions}>
+                      <button className={styles.acceptBtn} onClick={() => updateOrderStatus(order._id, 'Accepted')}>Accept</button>
+                      <button className={styles.declineBtn} onClick={() => updateOrderStatus(order._id, 'Declined')}>Decline</button>
+                    </div>
+                  )}
+                  {order.status === 'Accepted' && (
+                    <button className={styles.completeBtn} onClick={() => updateOrderStatus(order._id, 'Completed')}>Mark as Completed</button>
+                  )}
+                </div>
+              ))}
+              {orders.filter(o => o.orderType === (activeView === 'Website' ? 'Online' : activeView)).length === 0 && (
+                <p>No {activeView} orders found.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeView === 'History' && (
+          <div className={styles.fullView}>
+            <div className={styles.header}>
+              <h1 className={styles.title}>Sales History</h1>
+              <div className={styles.filters}>
+                {['Today', 'Week', 'Month'].map(f => (
+                  <button 
+                    key={f} 
+                    className={`${styles.filterBtn} ${historyFilter === f ? styles.activeFilter : ''}`}
+                    onClick={() => fetchFilteredOrders(f)}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className={styles.historyTableContainer}>
+              <table className={styles.historyTable}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Items</th>
+                    <th>Staff</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map(order => (
+                    <tr key={order._id}>
+                      <td>{new Date(order.createdAt).toLocaleString()}</td>
+                      <td>#{order._id.slice(-6)}</td>
+                      <td>{order.orderType}</td>
+                      <td>{order.items.length} items</td>
+                      <td>{order.salesPerson?.username || 'N/A'}</td>
+                      <td>₦{order.totalAmount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
       {/* Receipt Print Modal */}
       {showReceipt && lastOrder && (
         <div className={styles.modalOverlay}>
           <div className={`${styles.modalContent} ${styles.printArea}`} ref={receiptRef}>
             <div className={styles.receipt}>
-              <h2>Cyril's Foods</h2>
-              <p>123 Food Avenue, Lagos</p>
+              <h2>{settings?.storeName || "Cyril's Foods"}</h2>
+              <p>{settings?.address || "123 Food Avenue, Lagos"}</p>
               <div className={styles.receiptDivider}></div>
-              <p>Receipt ID: {lastOrder.id}</p>
+              <p>Receipt ID: {lastOrder._id}</p>
               <p>Date: {lastOrder.date}</p>
               <p>Sales Rep: {lastOrder.salesPersonName}</p>
               <p>Payment: {lastOrder.paymentMethod} {lastOrder.paymentMethod === 'PR' ? `(${lastOrder.prComment})` : ''}</p>

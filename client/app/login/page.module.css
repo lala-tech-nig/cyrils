@@ -68,3 +68,10 @@
   font-size: 0.9rem;
   margin-top: 0.5rem;
 }
+
+@media (max-width: 480px) {
+  .loginCard {
+    margin: 1rem;
+    padding: 2rem 1.5rem;
+  }
+}

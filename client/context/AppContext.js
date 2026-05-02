@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import api from '../lib/api';
 
 const AppContext = createContext();
 
@@ -19,7 +20,8 @@ export function AppProvider({ children }) {
     }
 
     // Initialize socket connection
-    const newSocket = io('http://localhost:5000');
+    const socketUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
+    const newSocket = io(socketUrl);
     setSocket(newSocket);
 
     return () => newSocket.close();

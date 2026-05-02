@@ -16,6 +16,11 @@ const attendanceSchema = new mongoose.Schema({
   },
   checkOut: {
     type: Date
+  },
+  status: {
+    type: String,
+    enum: ['OnTime', 'Late'],
+    default: 'OnTime'
   }
 }, { timestamps: true });
 

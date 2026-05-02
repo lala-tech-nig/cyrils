@@ -4,30 +4,43 @@ import { useEffect, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import styles from './page.module.css';
 import Link from 'next/link';
+import api from '../lib/api';
 
 export default function LandingPage() {
   const { cart, addToCart } = useAppContext();
   const [products, setProducts] = useState([]);
+  const [settings, setSettings] = useState(null);
+  const [promotions, setPromotions] = useState([]);
+  const [currentPromoIndex, setCurrentPromoIndex] = useState(0);
 
   useEffect(() => {
-    // Fetch active products
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/products');
-        if (res.ok) {
-          const data = await res.json();
-          setProducts(data);
-        } else {
-          // Empty array if fetch fails, no fallback dummy data
-          setProducts([]);
-        }
+        const [prodRes, settRes, promoRes] = await Promise.all([
+          api.get('/products'),
+          api.get('/settings'),
+          api.get('/promotions')
+        ]);
+        setProducts(prodRes.data);
+        setSettings(settRes.data);
+        setPromotions(promoRes.data);
       } catch (error) {
-        console.error('Failed to fetch products:', error);
+        console.error('Failed to fetch data:', error);
         setProducts([]);
       }
     };
-    fetchProducts();
+    fetchData();
   }, []);
+
+  // Carousel auto-play
+  useEffect(() => {
+    if (promotions.length > 1) {
+      const timer = setInterval(() => {
+        setCurrentPromoIndex(prev => (prev + 1) % promotions.length);
+      }, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [promotions]);
 
   const totalCartItems = cart.reduce((total, item) => total + item.quantity, 0);
 
@@ -35,10 +48,11 @@ export default function LandingPage() {
     <div>
       <nav className={styles.navbar}>
         <div className={styles.logo}>
-          <span>🍲 Cyril's Foods</span>
+          <Link href="/">
+            <img src="/logo.png" alt="Cyril's Foods Logo" style={{ height: '40px', objectFit: 'contain' }} />
+          </Link>
         </div>
         <div className={styles.navLinks}>
-          <Link href="/login" className="btn-secondary">Staff Login</Link>
           <Link href="/checkout" className={styles.cartBtn}>
             🛒 Cart
             {totalCartItems > 0 && <span className={styles.badge}>{totalCartItems}</span>}
@@ -47,12 +61,38 @@ export default function LandingPage() {
       </nav>
 
       <section className={styles.hero}>
-        {/* Placeholder for Carousel */}
-        <div className={styles.heroContent}>
-          <h1>Taste the Magic of Home</h1>
-          <p>Order fresh, delicious meals directly from our kitchen to your table.</p>
-          <a href="#menu" className="btn-primary" style={{ display: 'inline-block' }}>Order Now</a>
-        </div>
+        {promotions.length > 0 ? (
+          <div className={styles.carouselContainer}>
+            {promotions.map((promo, idx) => (
+              <div 
+                key={promo._id} 
+                className={`${styles.carouselSlide} ${idx === currentPromoIndex ? styles.activeSlide : ''}`}
+                style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(${promo.imageUrl})` }}
+              >
+                <div className={styles.heroContent}>
+                  <h1>{promo.title}</h1>
+                  <p>{promo.description}</p>
+                  <a href="#menu" className="btn-primary" style={{ display: 'inline-block' }}>Order Now</a>
+                </div>
+              </div>
+            ))}
+            <div className={styles.carouselDots}>
+              {promotions.map((_, idx) => (
+                <span 
+                  key={idx} 
+                  className={`${styles.dot} ${idx === currentPromoIndex ? styles.activeDot : ''}`}
+                  onClick={() => setCurrentPromoIndex(idx)}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className={styles.heroContent}>
+            <h1>{settings?.heroTitle || "Taste the Magic of Home"}</h1>
+            <p>{settings?.heroSubtitle || "Order fresh, delicious meals directly from our kitchen to your table."}</p>
+            <a href="#menu" className="btn-primary" style={{ display: 'inline-block' }}>Order Now</a>
+          </div>
+        )}
       </section>
 
       <section id="menu" className={styles.menuSection}>

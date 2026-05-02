@@ -67,6 +67,58 @@
   backdrop-filter: blur(5px);
 }
 
+.carouselContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.carouselSlide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: cover;
+  background-position: center;
+}
+
+.activeSlide {
+  opacity: 1;
+}
+
+.carouselDots {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.75rem;
+  z-index: 20;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.activeDot {
+  background: var(--primary-orange);
+  transform: scale(1.2);
+}
+
 .hero h1 {
   font-size: 3.5rem;
   margin-bottom: 1rem;
@@ -162,4 +214,42 @@
 .cardAction {
   margin-top: auto;
   width: 100%;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    padding: 1rem;
+  }
+
+  .navLinks {
+    gap: 1rem;
+  }
+
+  .hero {
+    height: auto;
+    min-height: 300px;
+    padding: 4rem 1rem;
+  }
+
+  .hero h1 {
+    font-size: 2.2rem;
+  }
+
+  .hero p {
+    font-size: 1rem;
+  }
+
+  .menuSection {
+    padding: 2rem 1rem;
+  }
+
+  .sectionTitle {
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
 }

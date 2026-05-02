@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAppContext } from '../../../context/AppContext';
+import api from '../../../lib/api';
 
 export default function AdminDashboard() {
   const { user } = useAppContext();
@@ -9,20 +10,97 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState([]);
   
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'Sales' });
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Main', imageUrl: '' });
+  const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Main' });
+  const [productImage, setProductImage] = useState(null);
+
+  const [settings, setSettings] = useState({ targetLat: 0, targetLng: 0 });
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [promotions, setPromotions] = useState([]);
+  const [newPromo, setNewPromo] = useState({ title: '', description: '', order: 0 });
+  const [promoImage, setPromoImage] = useState(null);
 
   useEffect(() => {
     fetchUsers();
     fetchProducts();
+    fetchSettings();
+    fetchAttendance();
+    fetchPromotions();
   }, []);
 
-  const fetchUsers = async () => {
-    const token = localStorage.getItem('token');
+  const fetchPromotions = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/users', {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await api.get('/promotions/all');
+      setPromotions(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCreatePromo = async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('title', newPromo.title);
+    formData.append('description', newPromo.description);
+    formData.append('order', newPromo.order);
+    if (promoImage) {
+      formData.append('image', promoImage);
+    }
+
+    try {
+      await api.post('/promotions', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      if (res.ok) setUsers(await res.json());
+      setNewPromo({ title: '', description: '', order: 0 });
+      setPromoImage(null);
+      fetchPromotions();
+      alert('Promotion created successfully');
+    } catch (err) {
+      alert('Error creating promotion');
+    }
+  };
+
+  const deletePromo = async (id) => {
+    if (!confirm('Delete this promotion?')) return;
+    try {
+      await api.delete(`/promotions/${id}`);
+      fetchPromotions();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const res = await api.get('/settings');
+      setSettings(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchAttendance = async () => {
+    try {
+      const res = await api.get('/attendance/report');
+      setAttendanceLogs(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const updateGeofence = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put('/settings', { targetLat: settings.targetLat, targetLng: settings.targetLng });
+      alert('Geofence updated');
+    } catch (err) {
+      alert('Error updating geofence');
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/users');
+      setUsers(res.data);
     } catch (err) {
       console.error('Failed to fetch users', err);
     }
@@ -30,8 +108,8 @@ export default function AdminDashboard() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/products');
-      if (res.ok) setProducts(await res.json());
+      const res = await api.get('/products');
+      setProducts(res.data);
     } catch (err) {
       console.error('Failed to fetch products', err);
     }
@@ -39,61 +117,43 @@ export default function AdminDashboard() {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch('http://localhost:5000/api/users', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(newUser)
-      });
-      if (res.ok) {
-        setNewUser({ username: '', password: '', role: 'Sales' });
-        fetchUsers();
-        alert('User created successfully');
-      } else {
-        const data = await res.json();
-        alert(data.message || 'Error creating user');
-      }
+      await api.post('/users', newUser);
+      setNewUser({ username: '', password: '', role: 'Sales' });
+      fetchUsers();
+      alert('User created successfully');
     } catch (err) {
-      console.error(err);
+      alert(err.response?.data?.message || 'Error creating user');
     }
   };
 
   const handleCreateProduct = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('name', newProduct.name);
+    formData.append('price', newProduct.price);
+    formData.append('category', newProduct.category);
+    if (productImage) {
+      formData.append('image', productImage);
+    }
+
     try {
-      const res = await fetch('http://localhost:5000/api/products', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(newProduct)
+      await api.post('/products', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      if (res.ok) {
-        setNewProduct({ name: '', price: '', category: 'Main', imageUrl: '' });
-        fetchProducts();
-        alert('Menu item created successfully');
-      } else {
-        alert('Error creating product');
-      }
+      setNewProduct({ name: '', price: '', category: 'Main' });
+      setProductImage(null);
+      fetchProducts();
+      alert('Menu item created successfully');
     } catch (err) {
-      console.error(err);
+      alert('Error creating product');
     }
   };
 
   const toggleUserStatus = async (id) => {
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`http://localhost:5000/api/users/${id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) fetchUsers();
+      await api.put(`/users/${id}`);
+      fetchUsers();
     } catch (err) {
       console.error(err);
     }
@@ -101,13 +161,9 @@ export default function AdminDashboard() {
 
   const deleteProduct = async (id) => {
     if (!confirm('Are you sure you want to delete this menu item?')) return;
-    const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`http://localhost:5000/api/products/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) fetchProducts();
+      await api.delete(`/products/${id}`);
+      fetchProducts();
     } catch (err) {
       console.error(err);
     }
@@ -120,6 +176,92 @@ export default function AdminDashboard() {
   return (
     <div>
       <h1 style={{ marginBottom: '2rem' }}>Super Admin Dashboard</h1>
+
+      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: '3rem' }}>
+        
+        {/* Geofence Settings */}
+        <div style={{ flex: '1 1 300px', background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
+          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Store Geofence</h2>
+          <form onSubmit={updateGeofence} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label>Target Latitude</label>
+              <input type="number" step="any" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={settings.targetLat} onChange={e => setSettings({...settings, targetLat: e.target.value})} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label>Target Longitude</label>
+              <input type="number" step="any" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={settings.targetLng} onChange={e => setSettings({...settings, targetLng: e.target.value})} />
+            </div>
+            <button type="submit" className="btn-secondary">Update Geofence</button>
+            <small style={{color: '#666'}}>Staff can only log in within 20m of this location.</small>
+          </form>
+        </div>
+
+        {/* Staff Attendance Report */}
+        <div style={{ flex: '2 1 500px', background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
+          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Attendance Report</h2>
+          <div style={{ overflowX: 'auto', maxHeight: '300px' }}>
+            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #eee' }}>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Staff</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Check In</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendanceLogs.map(log => (
+                  <tr key={log._id} style={{ borderBottom: '1px solid #f5f5f5' }}>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>{log.user?.username}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem' }}>{new Date(log.checkIn).toLocaleString()}</td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <span style={{ 
+                        padding: '0.2rem 0.5rem', 
+                        borderRadius: '4px', 
+                        fontSize: '0.75rem', 
+                        fontWeight: 'bold',
+                        backgroundColor: log.status === 'Late' ? '#fee2e2' : '#dcfce7',
+                        color: log.status === 'Late' ? '#ef4444' : '#16a34a'
+                      }}>
+                        {log.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Promotion Management */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem', marginBottom: '3rem' }}>
+        <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
+          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Add Hero Promotion</h2>
+          <form onSubmit={handleCreatePromo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <input type="text" placeholder="Title" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newPromo.title} onChange={e => setNewPromo({...newPromo, title: e.target.value})} />
+            <textarea placeholder="Description" style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newPromo.description} onChange={e => setNewPromo({...newPromo, description: e.target.value})} />
+            <input type="file" accept="image/*" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} onChange={e => setPromoImage(e.target.files[0])} />
+            <button type="submit" className="btn-primary">Create Promotion</button>
+          </form>
+        </div>
+
+        <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
+          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Active Promotions</h2>
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            {promotions.map(promo => (
+              <div key={promo._id} style={{ display: 'flex', gap: '1rem', alignItems: 'center', borderBottom: '1px solid #f5f5f5', paddingBottom: '1rem' }}>
+                <img src={promo.imageUrl} alt="" style={{ width: '80px', height: '50px', objectFit: 'cover', borderRadius: '4px' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 'bold' }}>{promo.title}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#666' }}>{promo.description}</div>
+                </div>
+                <button onClick={() => deletePromo(promo._id)} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
+              </div>
+            ))}
+            {promotions.length === 0 && <p>No promotions added.</p>}
+          </div>
+        </div>
+      </div>
 
       <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
         
@@ -208,8 +350,8 @@ export default function AdminDashboard() {
               </select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontWeight: '500' }}>Image URL (optional)</label>
-              <input type="url" style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newProduct.imageUrl} onChange={e => setNewProduct({...newProduct, imageUrl: e.target.value})} />
+              <label style={{ fontWeight: '500' }}>Item Image</label>
+              <input type="file" accept="image/*" style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} onChange={e => setProductImage(e.target.files[0])} />
             </div>
             <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem' }}>Add to Menu</button>
           </form>

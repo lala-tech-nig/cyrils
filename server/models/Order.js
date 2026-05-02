@@ -20,7 +20,7 @@ const orderItemSchema = new mongoose.Schema({
 const orderSchema = new mongoose.Schema({
   orderType: {
     type: String,
-    enum: ['Online', 'WalkIn'],
+    enum: ['Online', 'WalkIn', 'Glovo', 'Chowdeck'],
     required: true
   },
   items: [orderItemSchema],
