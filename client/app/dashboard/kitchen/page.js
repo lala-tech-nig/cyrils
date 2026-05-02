@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import api from '../../../lib/api';
+import { useToast } from '../../../context/ToastContext';
 
 export default function KitchenDashboard() {
+  const toast = useToast();
   const [tasks, setTasks] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +58,9 @@ export default function KitchenDashboard() {
       await api.post('/kitchen', newTask);
       setNewTask({ rawMaterial: '', quantity: '', product: '', expectedPortions: '' });
       fetchData();
-      alert('Preparation task started!');
+      toast.success('Preparation task started!');
     } catch (err) {
-      alert('Error creating task');
+      toast.error('Error creating task');
     }
   };
 
@@ -67,10 +69,10 @@ export default function KitchenDashboard() {
       await api.put(`/kitchen/${id}`, { status: newStatus });
       fetchData();
       if (newStatus === 'Completed') {
-        alert('Food transferred! Waiting for Sales to accept.');
+        toast.info('Food transferred! Waiting for Sales to accept.');
       }
     } catch (err) {
-      alert('Error updating status');
+      toast.error('Error updating status');
     }
   };
 

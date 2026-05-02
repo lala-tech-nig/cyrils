@@ -10,7 +10,8 @@ const settingsSchema = new mongoose.Schema({
   targetLat: { type: Number, default: 0 },
   targetLng: { type: Number, default: 0 },
   isMarketOpen: { type: Boolean, default: true },
-  interventionPassword: { type: String, default: "1234" }
+  interventionOTP: { type: String },
+  otpExpiry: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Settings', settingsSchema);

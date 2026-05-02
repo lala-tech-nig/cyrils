@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import api from '../../../lib/api';
+import { useToast } from '../../../context/ToastContext';
 
 export default function ManagerDashboard() {
   const { user } = useAppContext();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('Overview');
   const [stats, setStats] = useState({
     totalSales: 0, monthSales: 0, ordersCount: 0, monthOrdersCount: 0, 
@@ -28,7 +30,7 @@ export default function ManagerDashboard() {
 
   const fetchData = async () => {
     try {
-      const [statsRes, attRes, promoRes, prodRes, transRes] = await Promise.all([
+      const [statsRes, attRes, promoRes, prodRes, transRes, settRes] = await Promise.all([
         api.get('/stats'),
         api.get('/attendance/report'),
         api.get('/promotions/all'),
@@ -60,9 +62,9 @@ export default function ManagerDashboard() {
       setNewPromo({ title: '', description: '', order: 0 });
       setPromoImage(null);
       fetchData();
-      alert('Promotion created successfully');
+      toast.success('Promotion created successfully');
     } catch (err) { 
-      alert(err.response?.data?.message || 'Error creating promotion'); 
+      toast.error(err.response?.data?.message || 'Error creating promotion'); 
     }
   };
 
@@ -87,9 +89,9 @@ export default function ManagerDashboard() {
       setNewProduct({ name: '', price: '', category: 'Main' });
       setProductImage(null);
       fetchData();
-      alert('Menu item created successfully');
+      toast.success('Menu item created successfully');
     } catch (err) { 
-      alert(err.response?.data?.message || 'Error creating product'); 
+      toast.error(err.response?.data?.message || 'Error creating product'); 
     }
   };
 
@@ -443,9 +445,9 @@ export default function ManagerDashboard() {
                     const newStatus = !settings.isMarketOpen;
                     await api.put('/settings', { isMarketOpen: newStatus });
                     setSettings({ ...settings, isMarketOpen: newStatus });
-                    alert(`Market is now ${newStatus ? 'Open' : 'Closed'}`);
+                    toast.success(`Market is now ${newStatus ? 'Open' : 'Closed'}`);
                   } catch (err) {
-                    alert('Failed to update market status');
+                    toast.error('Failed to update market status');
                   }
                 }}
                 className={settings.isMarketOpen ? 'btn-secondary' : 'btn-primary'}
@@ -456,31 +458,29 @@ export default function ManagerDashboard() {
             </div>
 
             <div style={{ borderTop: '1px solid #eee', paddingTop: '2rem' }}>
-              <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Security Settings</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.9rem', color: '#666' }}>Intervention Password</label>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <input 
-                    type="text" 
-                    value={settings.interventionPassword} 
-                    onChange={(e) => setSettings({...settings, interventionPassword: e.target.value})}
-                    style={{ flex: 1, padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px' }}
-                  />
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Security & OTP</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '12px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Intervention OTP</div>
+                  <div style={{ fontSize: '3rem', fontWeight: '800', color: '#1e293b', letterSpacing: '0.2em', fontFamily: 'monospace' }}>
+                    {settings.interventionOTP || '------'}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '1rem' }}>
+                    Valid until: {settings.otpExpiry ? new Date(settings.otpExpiry).toLocaleTimeString() : 'N/A'}
+                  </div>
                   <button 
-                    onClick={async () => {
-                      try {
-                        await api.put('/settings', { interventionPassword: settings.interventionPassword });
-                        alert('Intervention password updated');
-                      } catch (err) {
-                        alert('Failed to update password');
-                      }
-                    }}
-                    className="btn-primary"
+                    onClick={fetchData}
+                    style={{ marginTop: '1rem', background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
                   >
-                    Save
+                    Refresh OTP Now
                   </button>
                 </div>
-                <small style={{ color: '#999' }}>This password is required to perform sensitive actions on the Sales Dashboard.</small>
+                
+                <div style={{ padding: '1rem', background: '#fffbeb', border: '1px solid #fef08a', borderRadius: '8px' }}>
+                  <small style={{ color: '#854d0e' }}>
+                    <strong>Note:</strong> This OTP changes automatically every 10 minutes. Share this code with Sales staff when they need to perform an intervention (removing items or PR orders).
+                  </small>
+                </div>
               </div>
             </div>
           </div>

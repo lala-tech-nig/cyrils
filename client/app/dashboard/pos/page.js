@@ -5,9 +5,11 @@ import { useAppContext } from '../../../context/AppContext';
 import { useSearchParams } from 'next/navigation';
 import api from '../../../lib/api';
 import styles from './page.module.css';
+import { useToast } from '../../../context/ToastContext';
 
 export default function POSPage() {
   const { user } = useAppContext();
+  const toast = useToast();
   const searchParams = useSearchParams();
   const activeView = searchParams.get('view') || 'Main';
   
@@ -23,6 +25,9 @@ export default function POSPage() {
   const [orders, setOrders] = useState([]);
   const [historyFilter, setHistoryFilter] = useState('Today');
   const [interventionActive, setInterventionActive] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpInput, setOtpInput] = useState(['', '', '', '', '', '']);
+  const otpRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
   
   const receiptRef = useRef(null);
 
@@ -57,10 +62,10 @@ export default function POSPage() {
     try {
       await api.put(`/transfers/${id}/accept`);
       fetchData();
-      alert('Inventory accepted and confirmed!');
+      toast.success('Inventory accepted and confirmed!');
     } catch (err) {
       console.error(err);
-      alert('Failed to accept inventory');
+      toast.error('Failed to accept inventory');
     }
   };
 
@@ -119,7 +124,7 @@ export default function POSPage() {
   const handleCheckout = async () => {
     if (posCart.length === 0) return;
     if (paymentMethod === 'PR' && !prComment.trim()) {
-      alert("Please enter a PR comment (e.g., 'MD's Guest').");
+      toast.warning("Please enter a PR comment (e.g., 'MD's Guest').");
       return;
     }
 
@@ -144,9 +149,10 @@ export default function POSPage() {
       });
       setShowReceipt(true);
       fetchData();
+      toast.success('Order saved successfully!');
     } catch (err) {
       console.error(err);
-      alert('Failed to save order');
+      toast.error('Failed to save order');
     }
   };
 
@@ -155,11 +161,38 @@ export default function POSPage() {
       setInterventionActive(false);
       return;
     }
-    const pwd = prompt("Enter Intervention Password:");
-    if (pwd === settings?.interventionPassword) {
+    setShowOtpModal(true);
+    setOtpInput(['', '', '', '', '', '']);
+    setTimeout(() => otpRefs[0].current?.focus(), 100);
+  };
+
+  const handleOtpChange = (index, value) => {
+    if (value.length > 1) value = value[0];
+    const newOtp = [...otpInput];
+    newOtp[index] = value;
+    setOtpInput(newOtp);
+
+    if (value && index < 5) {
+      otpRefs[index + 1].current.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpInput[index] && index > 0) {
+      otpRefs[index - 1].current.focus();
+    }
+  };
+
+  const verifyOtp = () => {
+    const enteredOtp = otpInput.join('');
+    if (enteredOtp === settings?.interventionOTP) {
       setInterventionActive(true);
-    } else if (pwd !== null) {
-      alert("Incorrect password!");
+      setShowOtpModal(false);
+      toast.success('Intervention mode activated');
+    } else {
+      toast.error('Invalid OTP code');
+      setOtpInput(['', '', '', '', '', '']);
+      otpRefs[0].current.focus();
     }
   };
 
@@ -178,9 +211,9 @@ export default function POSPage() {
     if (!confirm('Are you sure you want to close your shift and end attendance?')) return;
     try {
       await api.post('/attendance/check-out');
-      alert('Shift closed and attendance ended successfully.');
+      toast.success('Shift closed successfully.');
     } catch (err) {
-      alert(err.response?.data?.message || 'Error closing shift');
+      toast.error(err.response?.data?.message || 'Error closing shift');
     }
   };
 
@@ -469,6 +502,54 @@ export default function POSPage() {
                 <button className="btn-primary" style={{flex: 1}} onClick={printReceipt}>Print</button>
                 <button className="btn-secondary" style={{flex: 1}} onClick={() => setShowReceipt(false)}>Close</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OTP Modal */}
+      {showOtpModal && (
+        <div className={styles.modalOverlay} style={{ zIndex: 1000 }}>
+          <div className={styles.modalContent} style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem' }}>
+            <h2 style={{ marginBottom: '0.5rem' }}>Enter Intervention OTP</h2>
+            <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '2rem' }}>Please enter the 6-digit code from the Manager Dashboard</p>
+            
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginBottom: '2.5rem' }}>
+              {otpInput.map((digit, i) => (
+                <input 
+                  key={i}
+                  ref={otpRefs[i]}
+                  type="text"
+                  maxLength="1"
+                  value={digit}
+                  onChange={(e) => handleOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                  style={{ 
+                    width: '45px', height: '55px', fontSize: '1.5rem', fontWeight: 'bold', 
+                    textAlign: 'center', borderRadius: '8px', border: '2px solid #e2e8f0',
+                    outline: 'none', transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                />
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                className="btn-secondary" 
+                style={{ flex: 1 }} 
+                onClick={() => setShowOtpModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-primary" 
+                style={{ flex: 1 }} 
+                onClick={verifyOtp}
+              >
+                Verify
+              </button>
             </div>
           </div>
         </div>

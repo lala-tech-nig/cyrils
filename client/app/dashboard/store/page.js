@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import styles from '../layout.module.css';
+import { useToast } from '../../../context/ToastContext';
 
 export default function StoreDashboard() {
+  const toast = useToast();
   const [inventory, setInventory] = useState([
     { id: 1, name: 'Rice', unit: 'Bag', qty: 10, cost: 80000 },
     { id: 2, name: 'Beans', unit: 'Derica', qty: 50, cost: 1500 },
@@ -16,7 +18,7 @@ export default function StoreDashboard() {
     e.preventDefault();
     if (!issueForm.item || !issueForm.qty || !issueForm.portions) return;
     
-    alert(`Issued ${issueForm.qty} units of ${issueForm.item} to Kitchen. Expected portions: ${issueForm.portions}`);
+    toast.success(`Issued ${issueForm.qty} units of ${issueForm.item} to Kitchen.`);
     // Here we would call the backend to update inventory and create a Kitchen task
     setIssueForm({ item: '', qty: '', portions: '' });
   };
