@@ -18,18 +18,12 @@ export default function LandingPage() {
           const data = await res.json();
           setProducts(data);
         } else {
-          // Fallback dummy data if backend is empty/down
-          setProducts([
-            { _id: '1', name: 'Jollof Rice & Chicken', price: 3500, category: 'Main', imageUrl: '' },
-            { _id: '2', name: 'Fried Rice & Beef', price: 4000, category: 'Main', imageUrl: '' },
-            { _id: '3', name: 'Pounded Yam & Egusi', price: 4500, category: 'Swallow', imageUrl: '' },
-          ]);
+          // Empty array if fetch fails, no fallback dummy data
+          setProducts([]);
         }
       } catch (error) {
-        setProducts([
-          { _id: '1', name: 'Jollof Rice & Chicken', price: 3500, category: 'Main', imageUrl: '' },
-          { _id: '2', name: 'Fried Rice & Beef', price: 4000, category: 'Main', imageUrl: '' },
-        ]);
+        console.error('Failed to fetch products:', error);
+        setProducts([]);
       }
     };
     fetchProducts();

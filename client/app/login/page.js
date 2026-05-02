@@ -48,15 +48,8 @@ export default function LoginPage() {
         setError(data.message || 'Invalid login credentials');
       }
     } catch (err) {
-      // Mock login for frontend preview since DB might not be seeded yet
       console.error(err);
-      if (username === 'admin' && password === 'admin') {
-        const mockUser = { id: '1', username: 'admin', role: 'SuperAdmin' };
-        login(mockUser, 'mocktoken');
-        router.push('/dashboard/manager');
-      } else {
-        setError('Server Error. Try again.');
-      }
+      setError('Server Error. Try again.');
     } finally {
       setIsLoading(false);
     }

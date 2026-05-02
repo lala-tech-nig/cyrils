@@ -20,13 +20,8 @@ export default function POSPage() {
       .then(res => res.json())
       .then(data => setProducts(data))
       .catch(err => {
-        // Fallback
-        setProducts([
-          { _id: '1', name: 'Jollof Rice & Chicken', price: 3500 },
-          { _id: '2', name: 'Fried Rice & Beef', price: 4000 },
-          { _id: '3', name: 'Pounded Yam', price: 1500 },
-          { _id: '4', name: 'Egusi Soup', price: 2000 },
-        ]);
+        console.error('Failed to fetch POS products', err);
+        setProducts([]);
       });
   }, []);
 
