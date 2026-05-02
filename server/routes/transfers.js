@@ -31,5 +31,31 @@ router.post('/', protect, async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 });
+// GET pending transfers for Sales/POS
+router.get('/pending', protect, async (req, res) => {
+  try {
+    const transfers = await Transfer.find({ status: 'Pending' })
+      .populate('product', 'name')
+      .populate('handledBy', 'username');
+    res.json(transfers);
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// PUT accept a transfer
+router.put('/:id/accept', protect, async (req, res) => {
+  try {
+    const transfer = await Transfer.findById(req.params.id);
+    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
+
+    transfer.status = 'Accepted';
+    transfer.receivedBy = req.user.id;
+    await transfer.save();
+    res.json(transfer);
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
 
 module.exports = router;

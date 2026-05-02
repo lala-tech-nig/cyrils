@@ -44,7 +44,7 @@ router.post('/check-in', protect, async (req, res) => {
     });
 
     if (attendance) {
-      return res.status(400).json({ message: 'Already checked in for today' });
+      return res.status(200).json(attendance); // Already checked in, just return it
     }
 
     // Determine status (Late if after 8:00 AM)

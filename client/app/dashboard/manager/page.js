@@ -20,6 +20,7 @@ export default function ManagerDashboard() {
   const [productImage, setProductImage] = useState(null);
   const [newPromo, setNewPromo] = useState({ title: '', description: '', order: 0 });
   const [promoImage, setPromoImage] = useState(null);
+  const [settings, setSettings] = useState({ isMarketOpen: true, interventionPassword: '1234' });
 
   useEffect(() => {
     fetchData();
@@ -32,13 +33,15 @@ export default function ManagerDashboard() {
         api.get('/attendance/report'),
         api.get('/promotions/all'),
         api.get('/products'),
-        api.get('/transfers')
+        api.get('/transfers'),
+        api.get('/settings')
       ]);
       setStats(statsRes.data);
       setAttendanceLogs(attRes.data);
       setPromotions(promoRes.data);
       setProducts(prodRes.data);
       setTransfers(transRes.data);
+      setSettings(settRes.data);
     } catch (err) {
       console.error('Failed to fetch dashboard data', err);
     }
@@ -102,7 +105,7 @@ export default function ManagerDashboard() {
     return <div style={{ padding: '2rem' }}>Unauthorized Access</div>;
   }
 
-  const tabs = ['Overview', 'Detailed Sales', 'Staff & Performance', 'Kitchen & Transfers', 'Promotions', 'Menu'];
+  const tabs = ['Overview', 'Detailed Sales', 'Staff & Performance', 'Kitchen & Transfers', 'Promotions', 'Menu', 'Settings'];
 
   const loggedInUsers = attendanceLogs.filter(log => !log.checkOut && new Date(log.date).toDateString() === new Date().toDateString());
 
@@ -415,6 +418,70 @@ export default function ManagerDashboard() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Settings Tab */}
+      {activeTab === 'Settings' && (
+        <div style={{ animation: 'fadeIn 0.3s ease' }}>
+          <div className="glass-panel" style={{ padding: '2rem', maxWidth: '600px' }}>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>Store Operations Control</h2>
+            
+            <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: settings.isMarketOpen ? '#dcfce7' : '#fee2e2', borderRadius: '12px' }}>
+              <div>
+                <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Market Status: {settings.isMarketOpen ? 'OPEN' : 'CLOSED'}</div>
+                <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                  {settings.isMarketOpen 
+                    ? 'Customers can place orders online.' 
+                    : 'Ordering is disabled. Customers will see a "Closed" message.'}
+                </div>
+              </div>
+              <button 
+                onClick={async () => {
+                  try {
+                    const newStatus = !settings.isMarketOpen;
+                    await api.put('/settings', { isMarketOpen: newStatus });
+                    setSettings({ ...settings, isMarketOpen: newStatus });
+                    alert(`Market is now ${newStatus ? 'Open' : 'Closed'}`);
+                  } catch (err) {
+                    alert('Failed to update market status');
+                  }
+                }}
+                className={settings.isMarketOpen ? 'btn-secondary' : 'btn-primary'}
+                style={{ background: settings.isMarketOpen ? '#ef4444' : '#16a34a', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                {settings.isMarketOpen ? 'Close Market' : 'Open Market'}
+              </button>
+            </div>
+
+            <div style={{ borderTop: '1px solid #eee', paddingTop: '2rem' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Security Settings</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.9rem', color: '#666' }}>Intervention Password</label>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <input 
+                    type="text" 
+                    value={settings.interventionPassword} 
+                    onChange={(e) => setSettings({...settings, interventionPassword: e.target.value})}
+                    style={{ flex: 1, padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px' }}
+                  />
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await api.put('/settings', { interventionPassword: settings.interventionPassword });
+                        alert('Intervention password updated');
+                      } catch (err) {
+                        alert('Failed to update password');
+                      }
+                    }}
+                    className="btn-primary"
+                  >
+                    Save
+                  </button>
+                </div>
+                <small style={{ color: '#999' }}>This password is required to perform sensitive actions on the Sales Dashboard.</small>
+              </div>
             </div>
           </div>
         </div>

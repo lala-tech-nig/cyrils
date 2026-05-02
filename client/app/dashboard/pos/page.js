@@ -19,8 +19,10 @@ export default function POSPage() {
   const [lastOrder, setLastOrder] = useState(null);
   const [settings, setSettings] = useState(null);
   
+  const [pendingTransfers, setPendingTransfers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [historyFilter, setHistoryFilter] = useState('Today');
+  const [interventionActive, setInterventionActive] = useState(false);
   
   const receiptRef = useRef(null);
 
@@ -36,16 +38,29 @@ export default function POSPage() {
 
   const fetchData = async () => {
     try {
-      const [prodRes, settRes, orderRes] = await Promise.all([
+      const [prodRes, settRes, orderRes, transRes] = await Promise.all([
         api.get('/products'),
         api.get('/settings'),
-        api.get('/orders')
+        api.get('/orders'),
+        api.get('/transfers/pending')
       ]);
       setProducts(prodRes.data);
       setSettings(settRes.data);
       setOrders(orderRes.data);
+      setPendingTransfers(transRes.data);
     } catch (err) {
       console.error('Failed to fetch POS data', err);
+    }
+  };
+
+  const handleAcceptTransfer = async (id) => {
+    try {
+      await api.put(`/transfers/${id}/accept`);
+      fetchData();
+      alert('Inventory accepted and confirmed!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to accept inventory');
     }
   };
 
@@ -135,6 +150,23 @@ export default function POSPage() {
     }
   };
 
+  const handleIntervention = () => {
+    if (interventionActive) {
+      setInterventionActive(false);
+      return;
+    }
+    const pwd = prompt("Enter Intervention Password:");
+    if (pwd === settings?.interventionPassword) {
+      setInterventionActive(true);
+    } else if (pwd !== null) {
+      alert("Incorrect password!");
+    }
+  };
+
+  const removeFromCart = (id) => {
+    setPosCart(prev => prev.filter(item => item._id !== id));
+  };
+
   const printReceipt = () => {
     window.print();
     setPosCart([]);
@@ -158,9 +190,39 @@ export default function POSPage() {
           <>
             {/* Menu Section */}
             <div className={styles.menuSection}>
+              {pendingTransfers.length > 0 && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fef08a', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '0.9rem', color: '#854d0e', marginBottom: '0.5rem' }}>📦 Incoming from Kitchen</h3>
+                  <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                    {pendingTransfers.map(t => (
+                      <div key={t._id} style={{ background: 'white', padding: '0.75rem', borderRadius: '6px', minWidth: '220px', border: '1px solid #fef08a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{t.product?.name}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#666' }}>Qty: {t.quantity} | By: {t.handledBy?.username}</div>
+                        </div>
+                        <button 
+                          onClick={() => handleAcceptTransfer(t._id)}
+                          style={{ background: '#57a74a', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                        >
+                          Accept
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className={styles.header}>
                 <h1 className={styles.title}>Walk-in Orders</h1>
-                <button className={styles.shiftBtn} onClick={handleCloseShift}>Close Shift</button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button 
+                    className={`${styles.shiftBtn} ${interventionActive ? styles.interventionActiveBtn : ''}`} 
+                    onClick={handleIntervention}
+                    style={{ background: interventionActive ? '#ef4444' : '#6366f1', color: 'white' }}
+                  >
+                    {interventionActive ? '🔓 End Intervention' : '🔒 Intervention'}
+                  </button>
+                  <button className={styles.shiftBtn} onClick={handleCloseShift}>Close Shift</button>
+                </div>
               </div>
               
               <div className={styles.menuGrid}>
@@ -217,9 +279,22 @@ export default function POSPage() {
                       <div style={{fontSize: '0.9rem', color: '#666'}}>₦{item.price}</div>
                     </div>
                     <div className={styles.qtyControl}>
-                      <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, -1)}>-</button>
-                      <span>{item.quantity}</span>
-                      <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, 1)}>+</button>
+                      {interventionActive ? (
+                        <>
+                          <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, -1)}>-</button>
+                          <span>{item.quantity}</span>
+                          <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, 1)}>+</button>
+                          <button 
+                            className={styles.removeBtn} 
+                            onClick={() => removeFromCart(item._id)}
+                            style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}
+                          >
+                            ×
+                          </button>
+                        </>
+                      ) : (
+                        <span style={{ fontWeight: 'bold' }}>x {item.quantity}</span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -232,7 +307,7 @@ export default function POSPage() {
                 </div>
 
                 <div className={styles.paymentMethods}>
-                  {['Cash', 'Card', 'Transfer', 'PR'].map(method => (
+                  {['Cash', 'Card', 'Transfer', (interventionActive ? 'PR' : null)].filter(Boolean).map(method => (
                     <button 
                       key={method}
                       className={`${styles.payBtn} ${paymentMethod === method ? styles.selected : ''}`}

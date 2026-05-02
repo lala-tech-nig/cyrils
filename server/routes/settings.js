@@ -17,8 +17,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PUT update settings (SuperAdmin only)
-router.put('/', protect, authorize('SuperAdmin'), async (req, res) => {
+// PUT update settings (Admin/Manager)
+router.put('/', protect, authorize('SuperAdmin', 'Manager'), async (req, res) => {
   try {
     let settings = await Settings.findOne();
     if (!settings) {

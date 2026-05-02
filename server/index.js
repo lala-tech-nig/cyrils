@@ -55,6 +55,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/promotions', require('./routes/promotions'));
 app.use('/api/transfers', require('./routes/transfers'));
+app.use('/api/kitchen', require('./routes/kitchen'));
 
 app.get('/', (req, res) => {
   res.send('Cyrils Foods API is running');

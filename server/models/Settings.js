@@ -8,7 +8,9 @@ const settingsSchema = new mongoose.Schema({
   heroSubtitle: { type: String, default: "Order fresh, delicious meals directly from our kitchen to your table." },
   whatsappNumber: { type: String, default: "2340000000000" },
   targetLat: { type: Number, default: 0 },
-  targetLng: { type: Number, default: 0 }
+  targetLng: { type: Number, default: 0 },
+  isMarketOpen: { type: Boolean, default: true },
+  interventionPassword: { type: String, default: "1234" }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Settings', settingsSchema);
