@@ -26,7 +26,7 @@ export default function ManagerDashboard() {
   const [prOrders, setPrOrders] = useState([]);
 
   // Forms & Settings
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Main' });
+  const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'FOOD' });
   const [productImage, setProductImage] = useState(null);
   const [newPromo, setNewPromo] = useState({ title: '', description: '', order: 0 });
   const [promoMedia, setPromoMedia] = useState(null);
@@ -200,7 +200,7 @@ export default function ManagerDashboard() {
 
     try {
       await api.post('/products', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setNewProduct({ name: '', price: '', category: 'Main' });
+      setNewProduct({ name: '', price: '', category: 'FOOD' });
       setProductImage(null);
       fetchDashboardData();
       toast.success('Menu item created');
@@ -746,11 +746,12 @@ export default function ManagerDashboard() {
                   <div className={`${styles.formGroup} ${styles.full}`}>
                     <label className={styles.formLabel}>Category</label>
                     <select className={styles.formControl} value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
-                      <option value="Main">Main</option>
-                      <option value="Swallow">Swallow</option>
-                      <option value="Proteins">Proteins</option>
-                      <option value="Drinks">Drinks</option>
-                      <option value="Sides">Sides</option>
+                      <option value="FOOD">FOOD</option>
+                      <option value="PROTEIN">PROTEIN</option>
+                      <option value="SOUP">SOUP</option>
+                      <option value="SWALLOW">SWALLOW</option>
+                      <option value="SIDE">SIDE</option>
+                      <option value="DRINK">DRINK</option>
                     </select>
                   </div>
                   <div className={`${styles.formGroup} ${styles.full}`}>

@@ -12,6 +12,8 @@ export default function LandingPage() {
   const [settings, setSettings] = useState(null);
   const [promotions, setPromotions] = useState([]);
   const [currentPromoIndex, setCurrentPromoIndex] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const categories = ['All', 'FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK'];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,6 +47,8 @@ export default function LandingPage() {
 
   const totalCartItems = cart.reduce((total, item) => total + item.quantity, 0);
 
+  const filteredProducts = selectedCategory === 'All' ? products : products.filter(p => (p.category || '').toUpperCase() === selectedCategory);
+
   return (
     <div>
       <nav className={styles.navbar}>
@@ -62,57 +66,68 @@ export default function LandingPage() {
       </nav>
 
       <section className={styles.hero}>
-        {!settings || settings.isMarketOpen ? (
-          promotions.length > 0 ? (
-            <div className={styles.carouselContainer}>
-              {promotions.map((promo, idx) => (
-                <div 
-                  key={promo._id} 
-                  className={`${styles.carouselSlide} ${idx === currentPromoIndex ? styles.activeSlide : ''}`}
-                  style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(${promo.imageUrl})` }}
-                >
-                  <div className={styles.heroContent}>
-                    <h1>{promo.title}</h1>
-                    <p>{promo.description}</p>
-                    <a href="#menu" className="btn-primary" style={{ display: 'inline-block' }}>Order Now</a>
-                  </div>
+        {promotions.length > 0 ? (
+          <div className={styles.carouselContainer}>
+            {promotions.map((promo, idx) => (
+              <div 
+                key={promo._id} 
+                className={`${styles.carouselSlide} ${idx === currentPromoIndex ? styles.activeSlide : ''}`}
+                style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(${promo.imageUrl})` }}
+              >
+                <div className={styles.heroContent}>
+                  <h1>{promo.title}</h1>
+                  <p>{promo.description}</p>
+                  <a href="#menu" className="btn-primary" style={{ display: 'inline-block' }}>Order Now</a>
                 </div>
-              ))}
-              <div className={styles.carouselDots}>
-                {promotions.map((_, idx) => (
-                  <span 
-                    key={idx} 
-                    className={`${styles.dot} ${idx === currentPromoIndex ? styles.activeDot : ''}`}
-                    onClick={() => setCurrentPromoIndex(idx)}
-                  />
-                ))}
               </div>
+            ))}
+            <div className={styles.carouselDots}>
+              {promotions.map((_, idx) => (
+                <span 
+                  key={idx} 
+                  className={`${styles.dot} ${idx === currentPromoIndex ? styles.activeDot : ''}`}
+                  onClick={() => setCurrentPromoIndex(idx)}
+                />
+              ))}
             </div>
-          ) : (
-            <div className={styles.heroContent}>
-              <h1>{settings?.heroTitle || "Taste the Magic of Home"}</h1>
-              <p>{settings?.heroSubtitle || "Order fresh, delicious meals directly from our kitchen to your table."}</p>
-              <a href="#menu" className="btn-primary" style={{ display: 'inline-block' }}>Order Now</a>
-            </div>
-          )
+          </div>
         ) : (
-          <div className={styles.closedOverlay}>
-            <div className={styles.closedContent}>
-              <div className={styles.closedIcon}>🕒</div>
-              <h1>Market Closed For Now</h1>
-              <p>We are currently not accepting new orders. Please check back later!</p>
-              <div className={styles.closedBadge}>Opening Soon</div>
-            </div>
+          <div className={styles.heroContent}>
+            <h1>{settings?.heroTitle || "Taste the Magic of Home"}</h1>
+            <p>{settings?.heroSubtitle || "Order fresh, delicious meals directly from our kitchen to your table."}</p>
+            <a href="#menu" className="btn-primary" style={{ display: 'inline-block' }}>Order Now</a>
           </div>
         )}
       </section>
 
-      {(!settings || settings.isMarketOpen) && (
-        <section id="menu" className={styles.menuSection}>
-          <h2 className={styles.sectionTitle}>Our <span>Menu</span></h2>
-          
-          <div className={styles.grid}>
-            {products.map((product) => (
+      <section id="menu" className={styles.menuSection}>
+        {(!settings || settings.isMarketOpen) ? (
+          <>
+            <h2 className={styles.sectionTitle}>Our <span>Menu</span></h2>
+            
+            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', marginBottom: '2rem', paddingBottom: '0.5rem', justifyContent: 'center' }}>
+              {categories.map(cat => (
+                <button 
+                  key={cat} 
+                  onClick={() => setSelectedCategory(cat)}
+                  style={{
+                    padding: '0.5rem 1.5rem',
+                    borderRadius: '20px',
+                    border: '1px solid #f26e22',
+                    background: selectedCategory === cat ? '#f26e22' : 'white',
+                    color: selectedCategory === cat ? 'white' : '#f26e22',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            
+            <div className={styles.grid}>
+              {filteredProducts.map((product) => (
               <div key={product._id} className={styles.card}>
                 <div 
                   className={styles.cardImage} 
@@ -135,9 +150,20 @@ export default function LandingPage() {
                 </div>
               </div>
             ))}
+            {filteredProducts.length === 0 && <p style={{textAlign: 'center', gridColumn: '1 / -1', color: '#666'}}>No items in this category.</p>}
           </div>
-        </section>
-      )}
+          </>
+        ) : (
+          <div className={styles.closedOverlay} style={{ borderRadius: '24px' }}>
+            <div className={styles.closedContent}>
+              <div className={styles.closedIcon}>🕒</div>
+              <h1>Market Closed For Now</h1>
+              <p>We are currently not accepting new orders. Please check back later!</p>
+              <div className={styles.closedBadge}>Opening Soon</div>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

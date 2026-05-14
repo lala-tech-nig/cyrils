@@ -5,6 +5,7 @@ import { useAppContext } from '../../../context/AppContext';
 import api from '../../../lib/api';
 import styles from './page.module.css';
 import { useToast } from '../../../context/ToastContext';
+import { flushSync } from 'react-dom';
 
 export default function POSPage() {
   const { user } = useAppContext();
@@ -12,6 +13,8 @@ export default function POSPage() {
   
   const [products, setProducts] = useState([]);
   const [posCart, setPosCart] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const categories = ['All', 'FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK'];
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [prComment, setPrComment] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
@@ -106,19 +109,25 @@ export default function POSPage() {
       const res = await api.post('/orders', orderData);
       const savedOrder = res.data;
       
-      setLastOrder({
+      const orderToPrint = {
         ...savedOrder,
         items: posCart,
-        date: new Date(savedOrder.createdAt).toLocaleString()
+        date: new Date(savedOrder.createdAt).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })
+      };
+      
+      flushSync(() => {
+        setLastOrder(orderToPrint);
+        setShowReceipt(true);
       });
-      setShowReceipt(true);
+      
+      window.print();
+      
+      setPosCart([]);
+      setPrComment('');
+      setShowReceipt(false);
+      
       fetchData();
       toast.success('Order saved successfully!');
-      
-      // Auto-trigger the print dialog after a short delay to allow the DOM to render the receipt
-      setTimeout(() => {
-        printReceipt();
-      }, 500);
     } catch (err) {
       console.error(err);
       toast.error('Failed to save order');
@@ -133,8 +142,11 @@ export default function POSPage() {
   };
 
   const openVFDScreen = () => {
-    window.open('/vfd', '_blank', 'width=1024,height=768');
+    const leftPos = window.screen.width;
+    window.open('/vfd', '_blank', `width=1024,height=768,left=${leftPos},top=0`);
   };
+
+  const filteredProducts = selectedCategory === 'All' ? products : products.filter(p => (p.category || '').toUpperCase() === selectedCategory);
 
   return (
     <div className={styles.posContainer}>
@@ -164,11 +176,23 @@ export default function POSPage() {
         
         <div className={styles.header}>
           <h1 className={styles.title}>Walk-in Orders</h1>
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div className={styles.filters} style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+              {categories.map(cat => (
+                <button 
+                  key={cat} 
+                  className={`${styles.filterBtn} ${selectedCategory === cat ? styles.activeFilter : ''}`}
+                  onClick={() => setSelectedCategory(cat)}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
             <button 
               className={styles.shiftBtn} 
               onClick={openVFDScreen}
-              style={{ background: '#8b5cf6', color: 'white' }}
+              style={{ background: '#8b5cf6', color: 'white', whiteSpace: 'nowrap' }}
             >
               🖥️ Open VFD Screen
             </button>
@@ -176,15 +200,16 @@ export default function POSPage() {
         </div>
         
         <div className={styles.menuGrid}>
-          {products.map(product => (
+          {filteredProducts.map(product => (
             <div key={product._id} className={styles.menuCard} onClick={() => addToPosCart(product)}>
               {product.imageUrl && (
                 <div 
                   style={{ 
-                    height: '100px', 
+                    height: '120px', 
                     width: '100%', 
                     backgroundImage: `url(${product.imageUrl})`, 
-                    backgroundSize: 'cover', 
+                    backgroundSize: '100% 100%', 
+                    backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'center',
                     borderRadius: '4px',
                     marginBottom: '0.5rem'
@@ -194,7 +219,7 @@ export default function POSPage() {
               {!product.imageUrl && (
                 <div 
                   style={{ 
-                    height: '100px', 
+                    height: '120px', 
                     width: '100%', 
                     backgroundColor: '#f3f4f6', 
                     display: 'flex', 
@@ -292,12 +317,15 @@ export default function POSPage() {
         <div className={styles.modalOverlay}>
           <div className={`${styles.modalContent} ${styles.printArea}`} ref={receiptRef}>
             <div className={styles.receipt}>
+              <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                <img src="/logo.png" alt="Logo" style={{ height: '50px', objectFit: 'contain' }} />
+              </div>
               <h2>{settings?.storeName || "Cyril's Foods"}</h2>
               <p>{settings?.address || "123 Food Avenue, Lagos"}</p>
               <div className={styles.receiptDivider}></div>
               <p>Receipt ID: {lastOrder._id}</p>
               <p>Date: {lastOrder.date}</p>
-              <p>Sales Rep: {lastOrder.salesPersonName}</p>
+              <p><strong>Sales Rep:</strong> {lastOrder.salesPersonName}</p>
               <p>Payment: {lastOrder.paymentMethod} {lastOrder.paymentMethod === 'PR' ? `(${lastOrder.prComment})` : ''}</p>
               <div className={styles.receiptDivider}></div>
               
