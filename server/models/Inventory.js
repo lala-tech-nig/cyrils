@@ -12,14 +12,13 @@ const inventorySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Pre-save to calculate total value and retail price
-inventorySchema.pre('save', function(next) {
+inventorySchema.pre('save', function() {
   this.totalValue = this.quantityInStock * this.averageCostPerUnit;
   if (this.marginPercentage > 0) {
     this.retailPricePerUnit = this.averageCostPerUnit + (this.averageCostPerUnit * (this.marginPercentage / 100));
   } else {
     this.retailPricePerUnit = this.averageCostPerUnit;
   }
-  next();
 });
 
 module.exports = mongoose.model('Inventory', inventorySchema);

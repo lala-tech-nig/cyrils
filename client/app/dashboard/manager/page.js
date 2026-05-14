@@ -325,6 +325,11 @@ export default function ManagerDashboard() {
                 <div className={styles.statSub}>{stats.ordersCount} orders</div>
               </div>
               <div className={styles.statCard}>
+                <div className={styles.statLabel}>Total Customers</div>
+                <div className={styles.statValue} style={{ color: '#8b5cf6' }}>{stats.ordersCount}</div>
+                <div className={styles.statSub}>Representing today's footfall</div>
+              </div>
+              <div className={styles.statCard}>
                 <div className={styles.statLabel}>Cash Received (Today)</div>
                 <div className={styles.statValue} style={{ color: '#16a34a' }}>₦{stats.cashReceived?.toLocaleString()}</div>
               </div>
@@ -455,30 +460,104 @@ export default function ManagerDashboard() {
         )}
 
         {/* TOP SELLERS TAB */}
-        {activeTab === 'Top Sellers' && (
-          <div className={styles.panel} style={{ animation: 'fadeIn 0.3s ease' }}>
-            <div className={styles.panelHeader}>
-              <h2 className={styles.panelTitle}>Most Selling Materials (All Time)</h2>
-            </div>
-            <div className={styles.panelBody}>
-              {stats.topItems?.map((item, index) => (
-                <div key={item.name} className={styles.topItemRow}>
-                  <div className={`${styles.topItemRank} ${index === 0 ? styles.gold : index === 1 ? styles.silver : index === 2 ? styles.bronze : ''}`}>
-                    {index + 1}
+        {activeTab === 'Top Sellers' && (() => {
+          const allItemsMap = new Map();
+          products.forEach(p => {
+            allItemsMap.set(p.name, { name: p.name, qty: 0, revenue: 0 });
+          });
+          stats.topItems?.forEach(t => {
+            if (allItemsMap.has(t.name)) {
+              allItemsMap.get(t.name).qty = t.qty;
+              allItemsMap.get(t.name).revenue = t.revenue;
+            } else {
+              allItemsMap.set(t.name, { name: t.name, qty: t.qty, revenue: t.revenue });
+            }
+          });
+          const allItemsPerformance = Array.from(allItemsMap.values()).sort((a, b) => b.qty - a.qty);
+          
+          const top5 = allItemsPerformance.slice(0, 5);
+          const lowest5 = [...allItemsPerformance].sort((a, b) => a.qty - b.qty).slice(0, 5);
+
+          return (
+            <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div className={styles.twoCol}>
+                <div className={styles.panel} style={{ marginBottom: 0 }}>
+                  <div className={styles.panelHeader}>
+                    <h2 className={styles.panelTitle}>Highest Selling (Top 5)</h2>
                   </div>
-                  <div className={styles.topItemInfo}>
-                    <div className={styles.topItemName}>{item.name}</div>
-                    <div className={styles.topItemStats}>Sold: {item.qty} units | Revenue: ₦{item.revenue.toLocaleString()}</div>
-                    <div className={styles.topItemBar}>
-                      <div className={styles.topItemBarFill} style={{ width: `${Math.min((item.qty / (stats.topItems[0]?.qty || 1)) * 100, 100)}%` }}></div>
-                    </div>
+                  <div className={styles.panelBody}>
+                    {top5.map((item, index) => (
+                      <div key={item.name} className={styles.topItemRow}>
+                        <div className={`${styles.topItemRank} ${index === 0 ? styles.gold : index === 1 ? styles.silver : index === 2 ? styles.bronze : ''}`}>
+                          {index + 1}
+                        </div>
+                        <div className={styles.topItemInfo}>
+                          <div className={styles.topItemName}>{item.name}</div>
+                          <div className={styles.topItemStats}>Sold: {item.qty} units | Revenue: ₦{item.revenue.toLocaleString()}</div>
+                          <div className={styles.topItemBar}>
+                            <div className={styles.topItemBarFill} style={{ width: `${Math.min((item.qty / (top5[0]?.qty || 1)) * 100, 100)}%` }}></div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {top5.length === 0 && <div className={styles.emptyState}>No items sold yet.</div>}
                   </div>
                 </div>
-              ))}
-              {(!stats.topItems || stats.topItems.length === 0) && <div className={styles.emptyState}>No items sold yet.</div>}
+
+                <div className={styles.panel} style={{ marginBottom: 0 }}>
+                  <div className={styles.panelHeader}>
+                    <h2 className={styles.panelTitle}>Lowest Selling (Bottom 5)</h2>
+                  </div>
+                  <div className={styles.panelBody}>
+                    {lowest5.map((item, index) => (
+                      <div key={item.name} className={styles.topItemRow}>
+                        <div className={styles.topItemRank} style={{ background: '#94a3b8' }}>
+                          {index + 1}
+                        </div>
+                        <div className={styles.topItemInfo}>
+                          <div className={styles.topItemName}>{item.name}</div>
+                          <div className={styles.topItemStats}>Sold: {item.qty} units | Revenue: ₦{item.revenue.toLocaleString()}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {lowest5.length === 0 && <div className={styles.emptyState}>No items available.</div>}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.panel} style={{ marginBottom: 0 }}>
+                <div className={styles.panelHeader}>
+                  <h2 className={styles.panelTitle}>All Items & Selling Rate</h2>
+                </div>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Item Name</th>
+                        <th>Units Sold</th>
+                        <th>Total Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allItemsPerformance.map((item, index) => (
+                        <tr key={item.name}>
+                          <td>{index + 1}</td>
+                          <td style={{ fontWeight: 600 }}>{item.name}</td>
+                          <td>{item.qty}</td>
+                          <td style={{ fontWeight: 800 }}>₦{item.revenue.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                      {allItemsPerformance.length === 0 && (
+                        <tr><td colSpan="4" className={styles.emptyState}>No records found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* STAFF & ATTENDANCE TAB */}
         {activeTab === 'Staff & Attendance' && (

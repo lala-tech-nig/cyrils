@@ -7,6 +7,7 @@ const { protect, authorize } = require('../middleware/auth');
 // Helper to standardise units (everything to grams for calculation if needed, but we'll trust the user ensures matching units for now or we convert)
 const convertToGrams = (qty, unit) => unit === 'Kg' ? qty * 1000 : qty;
 const convertFromGrams = (grams, targetUnit) => targetUnit === 'Kg' ? grams / 1000 : grams;
+const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // GET all inventory items
 router.get('/', protect, async (req, res) => {
@@ -33,12 +34,15 @@ router.post('/supply', protect, authorize('Store', 'Manager', 'SuperAdmin'), asy
   try {
     const { itemName, category, unit, quantity, cost, supplierName, comment } = req.body;
     
+    if (!itemName) return res.status(400).json({ message: 'Item name is required' });
+    const trimmedName = itemName.trim();
+    
     // Find or create the item
-    let item = await Inventory.findOne({ itemName: { $regex: new RegExp(`^${itemName}$`, 'i') } });
+    let item = await Inventory.findOne({ itemName: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') } });
     
     if (!item) {
       item = new Inventory({
-        itemName,
+        itemName: trimmedName,
         category,
         unit,
         quantityInStock: 0,
@@ -47,20 +51,22 @@ router.post('/supply', protect, authorize('Store', 'Manager', 'SuperAdmin'), asy
     }
 
     // Convert supplied quantity to item's base unit if different
-    let qtyToAdd = quantity;
+    const safeQuantity = quantity || 0;
+    const safeCost = cost || 0;
+    let qtyToAdd = safeQuantity;
     if (item.unit !== unit) {
-      const suppliedGrams = convertToGrams(quantity, unit);
+      const suppliedGrams = convertToGrams(safeQuantity, unit);
       qtyToAdd = convertFromGrams(suppliedGrams, item.unit);
     }
 
     // Calculate new average cost
-    const totalExistingValue = item.quantityInStock * item.averageCostPerUnit;
-    const newTotalQuantity = item.quantityInStock + qtyToAdd;
-    // Cost per base unit of the item
-    const costPerBaseUnit = cost / qtyToAdd; 
+    const currentQty = item.quantityInStock || 0;
+    const currentAvgCost = item.averageCostPerUnit || 0;
+    const totalExistingValue = currentQty * currentAvgCost;
+    const newTotalQuantity = currentQty + qtyToAdd;
     
     // Average cost = (old value + new cost) / new total quantity
-    item.averageCostPerUnit = newTotalQuantity > 0 ? ((totalExistingValue + cost) / newTotalQuantity) : 0;
+    item.averageCostPerUnit = newTotalQuantity > 0 ? ((totalExistingValue + safeCost) / newTotalQuantity) : 0;
     item.quantityInStock = newTotalQuantity;
     
     await item.save();
@@ -69,9 +75,9 @@ router.post('/supply', protect, authorize('Store', 'Manager', 'SuperAdmin'), asy
     const history = new SupplyHistory({
       inventoryItem: item._id,
       supplierName,
-      quantity,
+      quantity: safeQuantity,
       unit,
-      cost,
+      cost: safeCost,
       comment
     });
     await history.save();
