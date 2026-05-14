@@ -19,10 +19,12 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) =>
 // POST a transfer (usually by Kitchen staff)
 router.post('/', protect, async (req, res) => {
   try {
-    const { product, quantity } = req.body;
+    const { product, quantity, unit, kitchenComment } = req.body;
     const newTransfer = new Transfer({
       product,
       quantity,
+      unit,
+      kitchenComment,
       handledBy: req.user.id
     });
     await newTransfer.save();
@@ -34,7 +36,7 @@ router.post('/', protect, async (req, res) => {
 // GET pending transfers for Sales/POS
 router.get('/pending', protect, async (req, res) => {
   try {
-    const transfers = await Transfer.find({ status: 'Pending' })
+    const transfers = await Transfer.find({ status: 'Pending', managerStatus: 'Approved' })
       .populate('product', 'name')
       .populate('handledBy', 'username');
     res.json(transfers);
@@ -51,6 +53,29 @@ router.put('/:id/accept', protect, async (req, res) => {
 
     transfer.status = 'Accepted';
     transfer.receivedBy = req.user.id;
+    await transfer.save();
+    res.json(transfer);
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// PUT Manager approves/rejects transfer
+router.put('/:id/manager-approve', protect, authorize('Manager', 'SuperAdmin'), async (req, res) => {
+  try {
+    const { action, managerComment } = req.body; // 'Approve' or 'Reject'
+    const transfer = await Transfer.findById(req.params.id);
+    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
+
+    if (action === 'Approve') {
+      transfer.managerStatus = 'Approved';
+    } else if (action === 'Reject') {
+      transfer.managerStatus = 'Rejected';
+      transfer.status = 'Rejected'; // reject entirely
+    }
+    
+    if (managerComment) transfer.managerComment = managerComment;
+    
     await transfer.save();
     res.json(transfer);
   } catch (err) {

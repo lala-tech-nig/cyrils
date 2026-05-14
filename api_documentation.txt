@@ -1,0 +1,158 @@
+# Cyril's Foods ERP - Complete API Documentation
+
+This document outlines all backend API endpoints across the 13 route files, describing their methods, purpose, and where they are consumed in the frontend application.
+
+## 1. Authentication (`/api/auth`)
+- `POST /api/auth/login`
+  - **Purpose**: Authenticates users and returns a JWT token. Also logs their location and checks Geofencing logic (if staff).
+  - **Usage**: Consumed in the `/login` page by all staff.
+
+## 2. Users (`/api/users`)
+- `GET /api/users`
+  - **Purpose**: Fetches all system users for management.
+  - **Usage**: Consumed in `AdminDashboard` (User Management tab).
+- `POST /api/users`
+  - **Purpose**: Creates a new staff member account.
+  - **Usage**: Consumed in `AdminDashboard`.
+- `PUT /api/users/:id/status`
+  - **Purpose**: Disables or enables a user account.
+  - **Usage**: Consumed in `AdminDashboard`.
+- `PUT /api/users/:id/pin`
+  - **Purpose**: Sets or resets a user's transaction PIN.
+  - **Usage**: Settings tab across dashboards.
+- `POST /api/users/verify-pin`
+  - **Purpose**: Verifies the PIN before allowing sensitive actions (like Manager approvals).
+  - **Usage**: Used in `ManagerDashboard` before approving Kitchen transfers.
+
+## 3. Products/Menu (`/api/products`)
+- `GET /api/products`
+  - **Purpose**: Gets the entire POS menu catalog.
+  - **Usage**: Consumed in `POSDashboard` (Menu section), `ManagerDashboard`, and `AdminDashboard`.
+- `POST /api/products`
+  - **Purpose**: Adds a new item to the menu catalog.
+  - **Usage**: Consumed in `AdminDashboard` and `ManagerDashboard` (Menu Management).
+- `DELETE /api/products/:id`
+  - **Purpose**: Removes an item from the menu.
+  - **Usage**: Consumed in `AdminDashboard` and `ManagerDashboard`.
+
+## 4. Inventory / Store (`/api/inventory`)
+- `GET /api/inventory`
+  - **Purpose**: Gets current store stock levels.
+  - **Usage**: Consumed in `StoreDashboard`, `FinanceDashboard`, and `KitchenDashboard`.
+- `POST /api/inventory/restock`
+  - **Purpose**: Adds new raw materials to the store.
+  - **Usage**: Consumed in `StoreDashboard` (Restock Input).
+- `GET /api/inventory/history`
+  - **Purpose**: Gets the history of all restock supplies.
+  - **Usage**: Consumed in `StoreDashboard` (Supply History).
+- `PUT /api/inventory/:id`
+  - **Purpose**: Updates an item (name, category, average cost).
+  - **Usage**: Consumed in `StoreDashboard`.
+
+## 5. Kitchen Operations (`/api/kitchen`)
+- `GET /api/kitchen`
+  - **Purpose**: Gets current kitchen prep operations (active batches).
+  - **Usage**: Consumed in `KitchenDashboard`.
+- `POST /api/kitchen`
+  - **Purpose**: Starts a new food prep batch.
+  - **Usage**: Consumed in `KitchenDashboard`.
+- `PUT /api/kitchen/:id`
+  - **Purpose**: Updates the status of a prep batch (e.g., to Completed).
+  - **Usage**: Consumed in `KitchenDashboard`.
+- `POST /api/kitchen/daily-log`
+  - **Purpose**: Logs end-of-day physical inventory audits by kitchen staff.
+  - **Usage**: Consumed in `KitchenDashboard` (End of Day Log).
+- `GET /api/kitchen/daily-log`
+  - **Purpose**: Retrieves historical EOD kitchen audits.
+  - **Usage**: Consumed in `KitchenDashboard` (History).
+- `POST /api/kitchen/returns`
+  - **Purpose**: Submits a request to return raw materials back to the store.
+  - **Usage**: Consumed in `KitchenDashboard`.
+- `PUT /api/kitchen/returns/:id/status`
+  - **Purpose**: Allows Store Managers to Accept/Reject material returns.
+  - **Usage**: Consumed in `StoreDashboard`.
+
+## 6. Kitchen Requests (`/api/kitchen-requests`)
+- `GET /api/kitchen-requests`
+  - **Purpose**: Gets all raw material requests made by the Kitchen.
+  - **Usage**: Consumed in `KitchenDashboard` and `StoreDashboard`.
+- `POST /api/kitchen-requests`
+  - **Purpose**: Creates a new request for raw materials from the store.
+  - **Usage**: Consumed in `KitchenDashboard`.
+- `PUT /api/kitchen-requests/:id/status`
+  - **Purpose**: Accepts/Rejects a kitchen request and deducts from Store inventory.
+  - **Usage**: Consumed in `StoreDashboard`.
+
+## 7. Transfers (`/api/transfers`)
+- `GET /api/transfers`
+  - **Purpose**: Gets all food transfers between Kitchen and Sales.
+  - **Usage**: Consumed in `ManagerDashboard` and `KitchenDashboard`.
+- `POST /api/transfers`
+  - **Purpose**: Logs a transfer of finished food from Kitchen to Sales (sets status to Pending Manager Approval).
+  - **Usage**: Consumed in `KitchenDashboard`.
+- `PUT /api/transfers/:id/status`
+  - **Purpose**: Allows POS staff to acknowledge receipt of goods.
+  - **Usage**: Consumed in `POSDashboard` (or similar modules).
+- `PUT /api/transfers/manager-approve/:id`
+  - **Purpose**: Allows Managers to formally approve a kitchen transfer so it's ready for sale.
+  - **Usage**: Consumed in `ManagerDashboard`.
+
+## 8. Orders/POS (`/api/orders`)
+- `POST /api/orders`
+  - **Purpose**: Submits a new POS transaction.
+  - **Usage**: Consumed in `POSDashboard` (Checkout Cart).
+- `GET /api/orders`
+  - **Purpose**: Retrieves all sales orders.
+  - **Usage**: Consumed in `ManagerDashboard` (Sales History).
+- `GET /api/orders/top-sellers`
+  - **Purpose**: Retrieves aggregate data of top-selling menu items.
+  - **Usage**: Consumed in `ManagerDashboard` (Top Sellers tab).
+
+## 9. Finance (`/api/finance`)
+- `GET /api/finance/report`
+  - **Purpose**: Aggregates gross revenue and expenses to calculate Net Profit based on time ranges.
+  - **Usage**: Consumed in `FinanceDashboard` (Overview).
+- `GET /api/finance/expenses`
+  - **Purpose**: Retrieves logged expenses.
+  - **Usage**: Consumed in `FinanceDashboard`.
+- `POST /api/finance/expenses`
+  - **Purpose**: Logs an outgoing cost, payment request, or receipt.
+  - **Usage**: Consumed in `FinanceDashboard`.
+- `PUT /api/finance/margins/:id`
+  - **Purpose**: Adjusts the profit margin on a store inventory item to auto-calculate retail price.
+  - **Usage**: Consumed in `FinanceDashboard` (Margin Configuration - SuperAdmin only).
+
+## 10. Attendance (`/api/attendance`)
+- `POST /api/attendance/clock-in`
+  - **Purpose**: Logs a staff member's arrival time, checking against geofence.
+  - **Usage**: Consumed in `AttendanceDashboard`.
+- `POST /api/attendance/clock-out`
+  - **Purpose**: Logs departure time.
+  - **Usage**: Consumed in `AttendanceDashboard`.
+- `GET /api/attendance`
+  - **Purpose**: Retrieves staff attendance history.
+  - **Usage**: Consumed in `ManagerDashboard` and `AdminDashboard`.
+
+## 11. Promotions (`/api/promotions`)
+- `GET /api/promotions`
+  - **Purpose**: Gets active VFD (Customer Facing Display) hero promotions.
+  - **Usage**: Consumed in `AdminDashboard`, `ManagerDashboard`, and the public facing screens.
+- `POST /api/promotions`
+  - **Purpose**: Uploads a new promo image.
+  - **Usage**: Consumed in `AdminDashboard` and `ManagerDashboard`.
+- `DELETE /api/promotions/:id`
+  - **Purpose**: Removes a promo.
+  - **Usage**: Consumed in `AdminDashboard`.
+
+## 12. Settings (`/api/settings`)
+- `GET /api/settings`
+  - **Purpose**: Retrieves global system settings (market Open/Close, Geofence coordinates).
+  - **Usage**: Consumed across all dashboards to verify if operations can proceed.
+- `PUT /api/settings`
+  - **Purpose**: Updates global settings.
+  - **Usage**: Consumed in `ManagerDashboard` (Settings tab) and `AdminDashboard` (Geofence tab).
+
+## 13. Statistics (`/api/stats`)
+- `GET /api/stats`
+  - **Purpose**: Provides quick, high-level summary cards (e.g., total sales today, active staff).
+  - **Usage**: Consumed in `ManagerDashboard` (Overview tab).

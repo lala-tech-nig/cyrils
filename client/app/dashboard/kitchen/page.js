@@ -3,52 +3,65 @@
 import { useState, useEffect } from 'react';
 import api from '../../../lib/api';
 import { useToast } from '../../../context/ToastContext';
+import styles from '../manager/manager.module.css';
 
 export default function KitchenDashboard() {
   const toast = useToast();
+  const [activeTab, setActiveTab] = useState('Prep Operations');
+  const [loading, setLoading] = useState(true);
+
   const [tasks, setTasks] = useState([]);
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  const [newTask, setNewTask] = useState({
-    rawMaterial: '',
-    quantity: '',
-    product: '',
-    expectedPortions: ''
-  });
-
-  const [activeTab, setActiveTab] = useState('Operations');
+  const [inventory, setInventory] = useState([]);
+  const [myRequests, setMyRequests] = useState([]);
+  const [myReturns, setMyReturns] = useState([]);
   const [history, setHistory] = useState({ tasks: [], transfers: [] });
+
+  // Forms
+  const [newTask, setNewTask] = useState({ rawMaterial: '', quantity: '', product: '', expectedPortions: '' });
+  const [newRequest, setNewRequest] = useState({ inventoryItem: '', quantityRequested: '', unit: 'Kg', expectedPortions: '', comment: '' });
+  const [newTransfer, setNewTransfer] = useState({ product: '', quantity: '', unit: 'Number', kitchenComment: '' });
+  const [newReturn, setNewReturn] = useState({ inventoryItem: '', quantityReturned: '', unit: 'Kg', comment: '' });
+
+  // End of Day
+  const [dailyLog, setDailyLog] = useState([{ inventoryItem: '', itemName: '', quantity: '', unit: 'Kg' }]);
 
   useEffect(() => {
     fetchData();
-    if (activeTab === 'History') fetchHistory();
   }, [activeTab]);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
-      const [tasksRes, productsRes] = await Promise.all([
-        api.get('/kitchen'),
-        api.get('/products')
+      const [prodRes, invRes] = await Promise.all([
+        api.get('/products'),
+        api.get('/inventory')
       ]);
-      setTasks(tasksRes.data);
-      setProducts(productsRes.data);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching kitchen data:', err);
-      setLoading(false);
-    }
-  };
+      setProducts(prodRes.data);
+      setInventory(invRes.data);
 
-  const fetchHistory = async () => {
-    try {
-      const [tasksRes, transRes] = await Promise.all([
-        api.get('/kitchen?all=true'), // I'll update backend to support this
-        api.get('/transfers')
-      ]);
-      setHistory({ tasks: tasksRes.data, transfers: transRes.data });
+      if (activeTab === 'Prep Operations') {
+        const res = await api.get('/kitchen');
+        setTasks(res.data);
+      } else if (activeTab === 'Material Requests') {
+        const res = await api.get('/kitchen-requests/my-requests');
+        setMyRequests(res.data);
+      } else if (activeTab === 'Return to Store') {
+        const res = await api.get('/kitchen/returns');
+        // Filter just this user's returns on frontend for simplicity, or we'd add an endpoint
+        setMyReturns(res.data); 
+      } else if (activeTab === 'History' || activeTab === 'Transfer to Sales') {
+        const [tasksRes, transRes] = await Promise.all([
+          api.get('/kitchen?all=true'),
+          api.get('/transfers')
+        ]);
+        setHistory({ tasks: tasksRes.data, transfers: transRes.data });
+      }
+      setLoading(false);
     } catch (err) {
-      console.error('Error fetching history:', err);
+      console.error('Error fetching data:', err);
+      toast.error('Failed to load data');
+      setLoading(false);
     }
   };
 
@@ -59,219 +72,435 @@ export default function KitchenDashboard() {
       setNewTask({ rawMaterial: '', quantity: '', product: '', expectedPortions: '' });
       fetchData();
       toast.success('Preparation task started!');
-    } catch (err) {
-      toast.error('Error creating task');
-    }
+    } catch (err) { toast.error('Error creating task'); }
   };
 
-  const updateStatus = async (id, newStatus) => {
+  const updateTaskStatus = async (id, newStatus) => {
     try {
       await api.put(`/kitchen/${id}`, { status: newStatus });
       fetchData();
-      if (newStatus === 'Completed') {
-        toast.info('Food transferred! Waiting for Sales to accept.');
-      }
-    } catch (err) {
-      toast.error('Error updating status');
-    }
+      if (newStatus === 'Completed') toast.info('Prep finished. Please log transfer to sales.');
+    } catch (err) { toast.error('Error updating status'); }
   };
 
-  if (loading) return <div style={{ padding: '2rem' }}>Loading Kitchen...</div>;
+  const handleCreateRequest = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/kitchen-requests', newRequest);
+      setNewRequest({ inventoryItem: '', quantityRequested: '', unit: 'Kg', expectedPortions: '', comment: '' });
+      fetchData();
+      toast.success('Request sent to Store!');
+    } catch (err) { toast.error('Error sending request'); }
+  };
+
+  const handleCreateTransfer = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/transfers', newTransfer);
+      setNewTransfer({ product: '', quantity: '', unit: 'Number', kitchenComment: '' });
+      fetchData();
+      toast.success('Transfer logged. Waiting for Manager Approval.');
+    } catch (err) { toast.error('Error creating transfer'); }
+  };
+
+  const handleCreateReturn = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/kitchen/returns', newReturn);
+      setNewReturn({ inventoryItem: '', quantityReturned: '', unit: 'Kg', comment: '' });
+      fetchData();
+      toast.success('Return logged. Waiting for Store to accept.');
+    } catch (err) { toast.error('Error creating return'); }
+  };
+
+  const handleDailyLogSubmit = async () => {
+    if (dailyLog.some(item => !item.inventoryItem || !item.quantity)) {
+      toast.warning('Please fill in all log rows properly.');
+      return;
+    }
+    
+    const formattedData = dailyLog.map(log => {
+      const invItem = inventory.find(i => i._id === log.inventoryItem);
+      return { ...log, itemName: invItem?.itemName || 'Unknown' };
+    });
+
+    try {
+      await api.post('/kitchen/daily-log', { materials: formattedData });
+      toast.success('End of day audit saved securely.');
+      setDailyLog([{ inventoryItem: '', itemName: '', quantity: '', unit: 'Kg' }]);
+    } catch (err) { toast.error('Error submitting daily log'); }
+  };
+
+  if (loading && !products.length) return <div style={{ padding: '2rem' }}>Loading Kitchen...</div>;
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#1a1a1a' }}>Kitchen Operations</h1>
-        <div style={{ display: 'flex', gap: '1rem', background: '#f3f4f6', padding: '0.4rem', borderRadius: '12px' }}>
-          {['Operations', 'History'].map(tab => (
-            <button 
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                padding: '0.6rem 1.2rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: activeTab === tab ? 'white' : 'transparent',
-                boxShadow: activeTab === tab ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
-                cursor: 'pointer',
-                fontWeight: '500'
-              }}
-            >
-              {tab}
-            </button>
-          ))}
+    <div className={styles.managerWrapper}>
+      <nav className={styles.topNav}>
+        <div className={styles.navGroup}>
+          <button className={`${styles.navBtn} ${activeTab === 'Prep Operations' ? styles.active : ''}`} onClick={() => setActiveTab('Prep Operations')}>
+            <span className={styles.icon}>🔪</span> Prep Operations
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'Transfer to Sales' ? styles.active : ''}`} onClick={() => setActiveTab('Transfer to Sales')}>
+            <span className={styles.icon}>📤</span> Transfer to Sales
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'Material Requests' ? styles.active : ''}`} onClick={() => setActiveTab('Material Requests')}>
+            <span className={styles.icon}>📥</span> Material Requests
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'Return to Store' ? styles.active : ''}`} onClick={() => setActiveTab('Return to Store')}>
+            <span className={styles.icon}>↩️</span> Return to Store
+          </button>
         </div>
-      </div>
 
-      {activeTab === 'Operations' ? (
-        <>
-          {/* New Task Form */}
-          <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Start New Preparation</h2>
-            <form onSubmit={handleCreateTask} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'end' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Raw Material</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Rice, Chicken" 
-                  required 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #ddd' }}
-                  value={newTask.rawMaterial}
-                  onChange={e => setNewTask({...newTask, rawMaterial: e.target.value})}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Raw Quantity</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. 2 Bags, 1 Carton" 
-                  required 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #ddd' }}
-                  value={newTask.quantity}
-                  onChange={e => setNewTask({...newTask, quantity: e.target.value})}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Resulting Menu Item</label>
-                <select 
-                  required 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #ddd' }}
-                  value={newTask.product}
-                  onChange={e => setNewTask({...newTask, product: e.target.value})}
-                >
-                  <option value="">Select Item</option>
-                  {products.map(p => (
-                    <option key={p._id} value={p._id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Expected Portions</label>
-                <input 
-                  type="number" 
-                  placeholder="100" 
-                  required 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #ddd' }}
-                  value={newTask.expectedPortions}
-                  onChange={e => setNewTask({...newTask, expectedPortions: e.target.value})}
-                />
-              </div>
-              <button type="submit" className="btn-primary" style={{ padding: '0.75rem' }}>Start Prep</button>
-            </form>
+        <div className={styles.navGroup}>
+          <button className={`${styles.navBtn} ${activeTab === 'End of Day Log' ? styles.active : ''}`} onClick={() => setActiveTab('End of Day Log')}>
+            <span className={styles.icon}>📝</span> End of Day Log
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'History' ? styles.active : ''}`} onClick={() => setActiveTab('History')}>
+            <span className={styles.icon}>📋</span> History
+          </button>
+        </div>
+      </nav>
+
+      <main className={styles.mainContent}>
+        <header className={styles.pageHeader}>
+          <div>
+            <h1 className={styles.pageTitle}>{activeTab}</h1>
           </div>
+          <button className={styles.btnSecondary} onClick={fetchData}>🔄 Refresh</button>
+        </header>
 
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <h2 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>Active Tasks</h2>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #eee' }}>
-                    <th style={{ padding: '1rem 0.5rem' }}>Raw Material</th>
-                    <th style={{ padding: '1rem 0.5rem' }}>Quantity</th>
-                    <th style={{ padding: '1rem 0.5rem' }}>Menu Item</th>
-                    <th style={{ padding: '1rem 0.5rem' }}>Portions</th>
-                    <th style={{ padding: '1rem 0.5rem' }}>Status</th>
-                    <th style={{ padding: '1rem 0.5rem' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasks.map(task => (
-                    <tr key={task._id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                      <td style={{ padding: '1rem 0.5rem', fontWeight: '500' }}>{task.rawMaterial}</td>
-                      <td style={{ padding: '1rem 0.5rem' }}>{task.quantity}</td>
-                      <td style={{ padding: '1rem 0.5rem' }}>{task.product?.name}</td>
-                      <td style={{ padding: '1rem 0.5rem', color: 'var(--primary-orange)', fontWeight: 'bold' }}>{task.expectedPortions}</td>
-                      <td style={{ padding: '1rem 0.5rem' }}>
-                        <span style={{ 
-                          padding: '0.25rem 0.5rem', 
-                          borderRadius: '4px', 
-                          fontSize: '0.875rem',
-                          backgroundColor: task.status === 'In Progress' ? '#fef08a' : '#f3f4f6',
-                          color: task.status === 'In Progress' ? '#854d0e' : '#374151'
-                        }}>
-                          {task.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '1rem 0.5rem' }}>
-                        {task.status === 'Pending' && (
-                          <button onClick={() => updateStatus(task._id, 'In Progress')} className="btn-secondary" style={{ padding: '0.5rem', fontSize: '0.9rem' }}>Start Prep</button>
-                        )}
-                        {task.status === 'In Progress' && (
-                          <button onClick={() => updateStatus(task._id, 'Completed')} className="btn-primary" style={{ padding: '0.5rem', fontSize: '0.9rem' }}>Finish & Transfer</button>
-                        )}
-                      </td>
+        {activeTab === 'Prep Operations' && (
+          <div className={styles.twoCol} style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}><h2 className={styles.panelTitle}>Start New Preparation</h2></div>
+              <div className={styles.panelBody}>
+                <form onSubmit={handleCreateTask} className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Raw Material / Recipe Note</label>
+                    <input type="text" className={styles.formControl} required value={newTask.rawMaterial} onChange={e => setNewTask({...newTask, rawMaterial: e.target.value})} placeholder="e.g. 5kg Rice, 2kg Meat" />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Resulting Menu Item</label>
+                    <select required className={styles.formControl} value={newTask.product} onChange={e => setNewTask({...newTask, product: e.target.value})}>
+                      <option value="">Select Target Item</option>
+                      {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Expected Yield (Portions/Kg)</label>
+                    <input type="number" className={styles.formControl} required value={newTask.expectedPortions} onChange={e => setNewTask({...newTask, expectedPortions: e.target.value})} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`} style={{ marginTop: '1rem' }}>
+                    <button type="submit" className={styles.btnPrimary}>🔥 Start Prep Task</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}><h2 className={styles.panelTitle}>Active Prep Tasks</h2></div>
+              <div className={styles.tableWrapper}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Material Details</th>
+                      <th>Target Output</th>
+                      <th>Status</th>
+                      <th>Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {tasks.map(task => (
+                      <tr key={task._id}>
+                        <td>{task.rawMaterial}</td>
+                        <td style={{ fontWeight: 600 }}>{task.product?.name} <span style={{ color: '#f97316' }}>({task.expectedPortions})</span></td>
+                        <td><span className={`${styles.badge} ${task.status === 'In Progress' ? styles.badgeOrange : styles.badgeGray}`}>{task.status}</span></td>
+                        <td>
+                          {task.status === 'Pending' && <button onClick={() => updateTaskStatus(task._id, 'In Progress')} className={styles.btnSecondary} style={{ padding: '0.4rem' }}>Start Cooking</button>}
+                          {task.status === 'In Progress' && <button onClick={() => updateTaskStatus(task._id, 'Completed')} className={styles.btnSuccess} style={{ padding: '0.4rem' }}>Finish</button>}
+                        </td>
+                      </tr>
+                    ))}
+                    {tasks.length === 0 && <tr><td colSpan="4" className={styles.emptyState}>No active prep tasks.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-          {/* History Sections */}
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Raw Material Usage History</h2>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #eee' }}>
-                    <th>Date</th>
-                    <th>Material</th>
-                    <th>Qty</th>
-                    <th>Output</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.tasks.map(task => (
-                    <tr key={task._id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                      <td style={{ padding: '0.75rem 0' }}>{new Date(task.createdAt).toLocaleDateString()}</td>
-                      <td>{task.rawMaterial}</td>
-                      <td>{task.quantity}</td>
-                      <td>{task.product?.name} ({task.expectedPortions})</td>
-                      <td>{task.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        )}
 
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Sent to Sales (Transfers)</h2>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+        {activeTab === 'Transfer to Sales' && (
+          <div className={styles.panel} style={{ animation: 'fadeIn 0.3s ease', maxWidth: '800px' }}>
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Log Finished Food Transfer</h2>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.2rem' }}>Transfers must be approved by the Manager before Sales can accept them.</p>
+            </div>
+            <div className={styles.panelBody}>
+              <form onSubmit={handleCreateTransfer} className={styles.formGrid}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Menu Item Produced</label>
+                  <select required className={styles.formControl} value={newTransfer.product} onChange={e => setNewTransfer({...newTransfer, product: e.target.value})}>
+                    <option value="">Select Item</option>
+                    {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div className={styles.formGroup} style={{ flex: 2 }}>
+                    <label className={styles.formLabel}>Quantity Sent</label>
+                    <input type="number" step="0.01" required className={styles.formControl} value={newTransfer.quantity} onChange={e => setNewTransfer({...newTransfer, quantity: e.target.value})} />
+                  </div>
+                  <div className={styles.formGroup} style={{ flex: 1 }}>
+                    <label className={styles.formLabel}>Unit</label>
+                    <select className={styles.formControl} value={newTransfer.unit} onChange={e => setNewTransfer({...newTransfer, unit: e.target.value})}>
+                      <option value="Number">Plates/Pieces</option>
+                      <option value="Kg">Kg</option>
+                      <option value="Gram">Grams</option>
+                    </select>
+                  </div>
+                </div>
+                <div className={`${styles.formGroup} ${styles.full}`}>
+                  <label className={styles.formLabel}>Comment for Manager (Optional)</label>
+                  <input type="text" className={styles.formControl} placeholder="e.g., Output was slightly lower due to spillage" value={newTransfer.kitchenComment} onChange={e => setNewTransfer({...newTransfer, kitchenComment: e.target.value})} />
+                </div>
+                <div className={`${styles.formGroup} ${styles.full}`} style={{ marginTop: '0.5rem' }}>
+                  <button type="submit" className={styles.btnPrimary}>📤 Send Transfer Request</button>
+                </div>
+              </form>
+            </div>
+
+            <h3 style={{ padding: '1.5rem', borderTop: '1px solid #e2e8f0', marginTop: '1rem' }}>Recent Transfers</h3>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #eee' }}>
+                  <tr>
                     <th>Date</th>
                     <th>Product</th>
-                    <th>Qty</th>
-                    <th>Status</th>
+                    <th>Volume Sent</th>
+                    <th>Manager Status</th>
+                    <th>Sales Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.transfers.map(trans => (
-                    <tr key={trans._id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                      <td style={{ padding: '0.75rem 0' }}>{new Date(trans.createdAt).toLocaleString()}</td>
-                      <td>{trans.product?.name}</td>
-                      <td>{trans.quantity}</td>
+                    <tr key={trans._id}>
+                      <td>{new Date(trans.createdAt).toLocaleString()}</td>
+                      <td style={{ fontWeight: 600 }}>{trans.product?.name}</td>
+                      <td>{trans.quantity} {trans.unit}</td>
                       <td>
-                        <span style={{ 
-                          color: trans.status === 'Accepted' ? '#166534' : '#854d0e',
-                          fontWeight: 'bold'
-                        }}>
+                        <span className={`${styles.badge} ${trans.managerStatus === 'Approved' ? styles.badgeGreen : trans.managerStatus === 'Rejected' ? styles.badgeRed : styles.badgeOrange}`}>
+                          {trans.managerStatus}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`${styles.badge} ${trans.status === 'Accepted' ? styles.badgeGreen : styles.badgeGray}`}>
                           {trans.status}
                         </span>
                       </td>
                     </tr>
                   ))}
+                  {history.transfers.length === 0 && <tr><td colSpan="5" className={styles.emptyState}>No recent transfers found.</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {activeTab === 'Material Requests' && (
+          <div className={styles.twoCol} style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}><h2 className={styles.panelTitle}>Request Raw Materials</h2></div>
+              <div className={styles.panelBody}>
+                <form onSubmit={handleCreateRequest} className={styles.formGrid}>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Store Item Needed</label>
+                    <select required className={styles.formControl} value={newRequest.inventoryItem} onChange={e => setNewRequest({...newRequest, inventoryItem: e.target.value})}>
+                      <option value="">Select Item</option>
+                      {inventory.map(item => <option key={item._id} value={item._id}>{item.itemName} ({item.category})</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }} className={styles.full}>
+                    <div className={styles.formGroup} style={{ flex: 2 }}>
+                      <label className={styles.formLabel}>Volume Needed</label>
+                      <input type="number" step="0.01" required className={styles.formControl} value={newRequest.quantityRequested} onChange={e => setNewRequest({...newRequest, quantityRequested: e.target.value})} />
+                    </div>
+                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                      <label className={styles.formLabel}>Unit</label>
+                      <select className={styles.formControl} value={newRequest.unit} onChange={e => setNewRequest({...newRequest, unit: e.target.value})}>
+                        <option value="Kg">Kg</option>
+                        <option value="Gram">Gram</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Purpose / Comment</label>
+                    <input type="text" className={styles.formControl} placeholder="e.g. Needed for 20 plates of Fried Rice" value={newRequest.comment} onChange={e => setNewRequest({...newRequest, comment: e.target.value})} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`} style={{ marginTop: '0.5rem' }}>
+                    <button type="submit" className={styles.btnPrimary}>📥 Send Request to Store</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}><h2 className={styles.panelTitle}>My Pending & Recent Requests</h2></div>
+              <div className={styles.tableWrapper}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Item</th>
+                      <th>Qty</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myRequests.map(req => (
+                      <tr key={req._id}>
+                        <td>{new Date(req.createdAt).toLocaleDateString()}</td>
+                        <td style={{ fontWeight: 600 }}>{req.inventoryItem?.itemName}</td>
+                        <td>{req.quantityRequested} {req.unit}</td>
+                        <td><span className={`${styles.badge} ${req.status === 'Accepted' ? styles.badgeGreen : req.status === 'Declined' ? styles.badgeRed : styles.badgeOrange}`}>{req.status}</span></td>
+                      </tr>
+                    ))}
+                    {myRequests.length === 0 && <tr><td colSpan="4" className={styles.emptyState}>No requests sent.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'Return to Store' && (
+          <div className={styles.panel} style={{ animation: 'fadeIn 0.3s ease', maxWidth: '800px' }}>
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Return Unused Materials to Store</h2>
+            </div>
+            <div className={styles.panelBody}>
+              <form onSubmit={handleCreateReturn} className={styles.formGrid}>
+                <div className={`${styles.formGroup} ${styles.full}`}>
+                  <label className={styles.formLabel}>Item Being Returned</label>
+                  <select required className={styles.formControl} value={newReturn.inventoryItem} onChange={e => setNewReturn({...newReturn, inventoryItem: e.target.value})}>
+                    <option value="">Select Item</option>
+                    {inventory.map(item => <option key={item._id} value={item._id}>{item.itemName} ({item.category})</option>)}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }} className={styles.full}>
+                  <div className={styles.formGroup} style={{ flex: 2 }}>
+                    <label className={styles.formLabel}>Volume Returned</label>
+                    <input type="number" step="0.01" required className={styles.formControl} value={newReturn.quantityReturned} onChange={e => setNewReturn({...newReturn, quantityReturned: e.target.value})} />
+                  </div>
+                  <div className={styles.formGroup} style={{ flex: 1 }}>
+                    <label className={styles.formLabel}>Unit</label>
+                    <select className={styles.formControl} value={newReturn.unit} onChange={e => setNewReturn({...newReturn, unit: e.target.value})}>
+                      <option value="Kg">Kg</option>
+                      <option value="Gram">Gram</option>
+                    </select>
+                  </div>
+                </div>
+                <div className={`${styles.formGroup} ${styles.full}`}>
+                  <label className={styles.formLabel}>Reason for Return</label>
+                  <input type="text" required className={styles.formControl} value={newReturn.comment} onChange={e => setNewReturn({...newReturn, comment: e.target.value})} placeholder="e.g. Excess material from prep" />
+                </div>
+                <div className={`${styles.formGroup} ${styles.full}`} style={{ marginTop: '0.5rem' }}>
+                  <button type="submit" className={styles.btnPrimary} style={{ background: '#6366f1' }}>↩️ Submit Return</button>
+                </div>
+              </form>
+            </div>
+
+            <h3 style={{ padding: '1.5rem', borderTop: '1px solid #e2e8f0', marginTop: '1rem' }}>Return History</h3>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Item</th>
+                    <th>Qty Returned</th>
+                    <th>Reason</th>
+                    <th>Store Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myReturns.map(ret => (
+                    <tr key={ret._id}>
+                      <td>{new Date(ret.createdAt).toLocaleString()}</td>
+                      <td style={{ fontWeight: 600 }}>{ret.inventoryItem?.itemName}</td>
+                      <td>{ret.quantityReturned} {ret.unit}</td>
+                      <td style={{ fontStyle: 'italic', color: '#64748b' }}>{ret.comment}</td>
+                      <td><span className={`${styles.badge} ${ret.status === 'Accepted' ? styles.badgeGreen : ret.status === 'Declined' ? styles.badgeRed : styles.badgeOrange}`}>{ret.status}</span></td>
+                    </tr>
+                  ))}
+                  {myReturns.length === 0 && <tr><td colSpan="5" className={styles.emptyState}>No returns found.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'End of Day Log' && (
+          <div className={styles.panel} style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>End of Day Kitchen Stock Audit</h2>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.2rem' }}>Log all physical materials remaining in the kitchen. This does NOT automatically modify store inventory, it is for managerial auditing.</p>
+            </div>
+            <div className={styles.panelBody}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {dailyLog.map((logRow, index) => (
+                  <div key={index} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', background: '#f8fafc', padding: '1rem', borderRadius: '8px' }}>
+                    <div style={{ flex: 2 }}>
+                      <label className={styles.formLabel}>Item</label>
+                      <select required className={styles.formControl} value={logRow.inventoryItem} onChange={e => {
+                        const newLog = [...dailyLog];
+                        newLog[index].inventoryItem = e.target.value;
+                        setDailyLog(newLog);
+                      }}>
+                        <option value="">Select Item</option>
+                        {inventory.map(item => <option key={item._id} value={item._id}>{item.itemName} ({item.category})</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className={styles.formLabel}>Volume Remaining</label>
+                      <input type="number" step="0.01" required className={styles.formControl} value={logRow.quantity} onChange={e => {
+                        const newLog = [...dailyLog];
+                        newLog[index].quantity = e.target.value;
+                        setDailyLog(newLog);
+                      }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className={styles.formLabel}>Unit</label>
+                      <select className={styles.formControl} value={logRow.unit} onChange={e => {
+                        const newLog = [...dailyLog];
+                        newLog[index].unit = e.target.value;
+                        setDailyLog(newLog);
+                      }}>
+                        <option value="Kg">Kg</option>
+                        <option value="Gram">Gram</option>
+                        <option value="Number">Pieces/Items</option>
+                      </select>
+                    </div>
+                    {index > 0 && (
+                      <button className={styles.btnDanger} style={{ padding: '0.75rem' }} onClick={() => {
+                        const newLog = dailyLog.filter((_, i) => i !== index);
+                        setDailyLog(newLog);
+                      }}>Remove</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button className={styles.btnSecondary} onClick={() => setDailyLog([...dailyLog, { inventoryItem: '', itemName: '', quantity: '', unit: 'Kg' }])}>
+                  ➕ Add Another Item
+                </button>
+                <button className={styles.btnPrimary} onClick={handleDailyLogSubmit} style={{ marginLeft: 'auto' }}>
+                  💾 Submit End of Day Log
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </main>
     </div>
   );
 }

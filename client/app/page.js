@@ -16,17 +16,18 @@ export default function LandingPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [prodRes, settRes, promoRes] = await Promise.all([
+        const [prodRes, settRes, promoRes] = await Promise.allSettled([
           api.get('/products'),
           api.get('/settings'),
           api.get('/promotions')
         ]);
-        setProducts(prodRes.data);
-        setSettings(settRes.data);
-        setPromotions(promoRes.data);
+        
+        if (prodRes.status === 'fulfilled') setProducts(prodRes.value.data);
+        if (settRes.status === 'fulfilled') setSettings(settRes.value.data);
+        if (promoRes.status === 'fulfilled') setPromotions(promoRes.value.data);
+        
       } catch (error) {
-        console.error('Failed to fetch data:', error);
-        setProducts([]);
+        console.error('Unexpected error during fetch:', error);
       }
     };
     fetchData();

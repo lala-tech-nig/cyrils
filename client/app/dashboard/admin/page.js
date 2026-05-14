@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import api from '../../../lib/api';
+import styles from '../manager/manager.module.css';
 
 export default function AdminDashboard() {
   const { user } = useAppContext();
+  const [activeTab, setActiveTab] = useState('User Management');
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
   
@@ -174,221 +176,301 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div>
-      <h1 style={{ marginBottom: '2rem' }}>Super Admin Dashboard</h1>
-
-      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: '3rem' }}>
-        
-        {/* Geofence Settings */}
-        <div style={{ flex: '1 1 300px', background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Store Geofence</h2>
-          <form onSubmit={updateGeofence} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label>Target Latitude</label>
-              <input type="number" step="any" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={settings.targetLat} onChange={e => setSettings({...settings, targetLat: e.target.value})} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label>Target Longitude</label>
-              <input type="number" step="any" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={settings.targetLng} onChange={e => setSettings({...settings, targetLng: e.target.value})} />
-            </div>
-            <button type="submit" className="btn-secondary">Update Geofence</button>
-            <small style={{color: '#666'}}>Staff can only log in within 20m of this location.</small>
-          </form>
+    <div className={styles.managerWrapper}>
+      <nav className={styles.topNav}>
+        <div className={styles.navGroup}>
+          <button className={`${styles.navBtn} ${activeTab === 'User Management' ? styles.active : ''}`} onClick={() => setActiveTab('User Management')}>
+            <span className={styles.icon}>👥</span> User Management
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'Geofence Settings' ? styles.active : ''}`} onClick={() => setActiveTab('Geofence Settings')}>
+            <span className={styles.icon}>📍</span> Geofence Settings
+          </button>
         </div>
+        <div className={styles.navGroup}>
+          <button className={`${styles.navBtn} ${activeTab === 'VFD Promotions' ? styles.active : ''}`} onClick={() => setActiveTab('VFD Promotions')}>
+            <span className={styles.icon}>📺</span> VFD Promotions
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'Menu Catalog' ? styles.active : ''}`} onClick={() => setActiveTab('Menu Catalog')}>
+            <span className={styles.icon}>🍔</span> Menu Catalog
+          </button>
+        </div>
+      </nav>
 
-        {/* Staff Attendance Report */}
-        <div style={{ flex: '2 1 500px', background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Attendance Report</h2>
-          <div style={{ overflowX: 'auto', maxHeight: '300px' }}>
-            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #eee' }}>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Staff</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Check In</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendanceLogs.map(log => (
-                  <tr key={log._id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>{log.user?.username}</td>
-                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem' }}>{new Date(log.checkIn).toLocaleString()}</td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <span style={{ 
-                        padding: '0.2rem 0.5rem', 
-                        borderRadius: '4px', 
-                        fontSize: '0.75rem', 
-                        fontWeight: 'bold',
-                        backgroundColor: log.status === 'Late' ? '#fee2e2' : '#dcfce7',
-                        color: log.status === 'Late' ? '#ef4444' : '#16a34a'
-                      }}>
-                        {log.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <main className={styles.mainContent}>
+        <header className={styles.pageHeader}>
+          <div>
+            <h1 className={styles.pageTitle}>{activeTab}</h1>
+            <p className={styles.pageSubtitle}>Super Admin Control Panel</p>
           </div>
-        </div>
-      </div>
+        </header>
 
-      {/* Promotion Management */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem', marginBottom: '3rem' }}>
-        <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Add Hero Promotion</h2>
-          <form onSubmit={handleCreatePromo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <input type="text" placeholder="Title" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newPromo.title} onChange={e => setNewPromo({...newPromo, title: e.target.value})} />
-            <textarea placeholder="Description" style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newPromo.description} onChange={e => setNewPromo({...newPromo, description: e.target.value})} />
-            <input type="file" accept="image/*" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} onChange={e => setPromoImage(e.target.files[0])} />
-            <button type="submit" className="btn-primary">Create Promotion</button>
-          </form>
-        </div>
-
-        <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Active Promotions</h2>
-          <div style={{ display: 'grid', gap: '1rem' }}>
-            {promotions.map(promo => (
-              <div key={promo._id} style={{ display: 'flex', gap: '1rem', alignItems: 'center', borderBottom: '1px solid #f5f5f5', paddingBottom: '1rem' }}>
-                <img src={promo.imageUrl} alt="" style={{ width: '80px', height: '50px', objectFit: 'cover', borderRadius: '4px' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 'bold' }}>{promo.title}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#666' }}>{promo.description}</div>
-                </div>
-                <button onClick={() => deletePromo(promo._id)} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
+        {activeTab === 'Geofence Settings' && (
+          <div className={styles.twoCol} style={{ animation: 'fadeIn 0.3s ease' }}>
+            {/* Geofence Settings */}
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Store Geofence</h2>
               </div>
-            ))}
-            {promotions.length === 0 && <p>No promotions added.</p>}
+              <div className={styles.panelBody}>
+                <form onSubmit={updateGeofence} className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Target Latitude</label>
+                    <input type="number" step="any" className={styles.formControl} required value={settings.targetLat} onChange={e => setSettings({...settings, targetLat: e.target.value})} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Target Longitude</label>
+                    <input type="number" step="any" className={styles.formControl} required value={settings.targetLng} onChange={e => setSettings({...settings, targetLng: e.target.value})} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <button type="submit" className={styles.btnPrimary}>Update Geofence</button>
+                    <small style={{color: '#666', marginTop: '0.5rem'}}>Staff can only log in within 20m of this location.</small>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* Staff Attendance Report */}
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Attendance Report</h2>
+              </div>
+              <div className={styles.tableWrapper}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Staff</th>
+                      <th>Check In</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceLogs.map(log => (
+                      <tr key={log._id}>
+                        <td style={{ fontWeight: 600 }}>{log.user?.username}</td>
+                        <td>{new Date(log.checkIn).toLocaleString()}</td>
+                        <td>
+                          <span className={`${styles.badge} ${log.status === 'Late' ? styles.badgeRed : styles.badgeGreen}`}>
+                            {log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {attendanceLogs.length === 0 && <tr><td colSpan="3" className={styles.emptyState}>No attendance records.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        
-        {/* User Management */}
-        <div style={{ flex: '1 1 300px', background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Create New Staff</h2>
-          <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontWeight: '500' }}>Username</label>
-              <input type="text" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} />
+        {activeTab === 'VFD Promotions' && (
+          <div className={styles.twoCol} style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Add Hero Promotion</h2>
+              </div>
+              <div className={styles.panelBody}>
+                <form onSubmit={handleCreatePromo} className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Title</label>
+                    <input type="text" className={styles.formControl} required value={newPromo.title} onChange={e => setNewPromo({...newPromo, title: e.target.value})} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Order</label>
+                    <input type="number" className={styles.formControl} value={newPromo.order} onChange={e => setNewPromo({...newPromo, order: e.target.value})} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Description</label>
+                    <textarea className={styles.formControl} value={newPromo.description} onChange={e => setNewPromo({...newPromo, description: e.target.value})} rows={2} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Image</label>
+                    <input type="file" accept="image/*" className={styles.formControl} required onChange={e => setPromoImage(e.target.files[0])} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <button type="submit" className={styles.btnPrimary}>Create Promotion</button>
+                  </div>
+                </form>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontWeight: '500' }}>Password</label>
-              <input type="password" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontWeight: '500' }}>Role</label>
-              <select style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
-                <option value="SuperAdmin">SuperAdmin</option>
-                <option value="Manager">Manager</option>
-                <option value="Sales">Sales</option>
-                <option value="Kitchen">Kitchen</option>
-                <option value="Store">Store</option>
-              </select>
-            </div>
-            <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem' }}>Create Account</button>
-          </form>
-        </div>
 
-        <div style={{ flex: '2 1 500px', background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Manage Staff</h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #eee' }}>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Username</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Role</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Status</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u._id} style={{ borderBottom: '1px solid #f5f5f5', opacity: u.isActive ? 1 : 0.5 }}>
-                    <td style={{ padding: '0.75rem 0.5rem', fontWeight: '500' }}>{u.username}</td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>{u.role}</td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <span style={{ color: u.isActive ? 'var(--primary-green)' : '#ef4444', fontWeight: 'bold' }}>
-                        {u.isActive ? 'Active' : 'Disabled'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      {u.role !== 'SuperAdmin' && (
-                        <button onClick={() => toggleUserStatus(u._id)} style={{ padding: '0.4rem 0.8rem', borderRadius: '4px', border: 'none', background: u.isActive ? '#fee2e2' : '#dcfce7', color: u.isActive ? '#ef4444' : '#166534', cursor: 'pointer', fontWeight: '500' }}>
-                          {u.isActive ? 'Disable' : 'Enable'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Active Promotions</h2>
+              </div>
+              <div className={styles.panelBody} style={{ padding: '1rem' }}>
+                <div className={styles.promoGrid}>
+                  {promotions.map(promo => (
+                    <div key={promo._id} className={styles.promoCard}>
+                      <img src={promo.imageUrl} alt="" className={styles.promoMedia} />
+                      <div className={styles.promoCardBody}>
+                        <div className={styles.promoCardTitle}>{promo.title}</div>
+                        <div className={styles.promoCardDesc}>{promo.description}</div>
+                        <div className={styles.promoCardActions}>
+                          <button className={styles.btnGhost} onClick={() => deletePromo(promo._id)}>Delete</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {promotions.length === 0 && <div className={styles.emptyState}>No promotions added.</div>}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Menu Management */}
-        <div style={{ flex: '1 1 300px', background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Create Menu Item</h2>
-          <form onSubmit={handleCreateProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontWeight: '500' }}>Item Name</label>
-              <input type="text" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+        {activeTab === 'User Management' && (
+          <div className={styles.twoCol} style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Create New Staff</h2>
+              </div>
+              <div className={styles.panelBody}>
+                <form onSubmit={handleCreateUser} className={styles.formGrid}>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Username</label>
+                    <input type="text" className={styles.formControl} required value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Password</label>
+                    <input type="password" className={styles.formControl} required value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Role</label>
+                    <select className={styles.formControl} value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                      <option value="SuperAdmin">SuperAdmin</option>
+                      <option value="Manager">Manager</option>
+                      <option value="Finance">Finance</option>
+                      <option value="Sales">Sales</option>
+                      <option value="Kitchen">Kitchen</option>
+                      <option value="Store">Store</option>
+                    </select>
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <button type="submit" className={styles.btnPrimary}>Create Account</button>
+                  </div>
+                </form>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontWeight: '500' }}>Price (₦)</label>
-              <input type="number" required style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontWeight: '500' }}>Category</label>
-              <select style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
-                <option value="Main">Main</option>
-                <option value="Swallow">Swallow</option>
-                <option value="Proteins">Proteins</option>
-                <option value="Drinks">Drinks</option>
-                <option value="Sides">Sides</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontWeight: '500' }}>Item Image</label>
-              <input type="file" accept="image/*" style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }} onChange={e => setProductImage(e.target.files[0])} />
-            </div>
-            <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem' }}>Add to Menu</button>
-          </form>
-        </div>
 
-        <div style={{ flex: '2 1 500px', background: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Current Menu</h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #eee' }}>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Name</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Category</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Price</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map(p => (
-                  <tr key={p._id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                    <td style={{ padding: '0.75rem 0.5rem', fontWeight: '500' }}>{p.name}</td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>{p.category}</td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>₦{p.price}</td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <button onClick={() => deleteProduct(p._id)} style={{ padding: '0.4rem 0.8rem', borderRadius: '4px', border: 'none', background: '#fee2e2', color: '#ef4444', cursor: 'pointer', fontWeight: '500' }}>
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {products.length === 0 && <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>No menu items found.</td></tr>}
-              </tbody>
-            </table>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Manage Staff</h2>
+              </div>
+              <div className={styles.tableWrapper}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Username</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u._id} style={{ opacity: u.isActive ? 1 : 0.5 }}>
+                        <td style={{ fontWeight: 600 }}>{u.username}</td>
+                        <td><span className={`${styles.badge} ${styles.badgeGray}`}>{u.role}</span></td>
+                        <td>
+                          <span className={`${styles.badge} ${u.isActive ? styles.badgeGreen : styles.badgeRed}`}>
+                            {u.isActive ? 'Active' : 'Disabled'}
+                          </span>
+                        </td>
+                        <td>
+                          {u.role !== 'SuperAdmin' && (
+                            <button onClick={() => toggleUserStatus(u._id)} className={u.isActive ? styles.btnDanger : styles.btnSuccess}>
+                              {u.isActive ? 'Disable' : 'Enable'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
-      </div>
+        {activeTab === 'Menu Catalog' && (
+          <div className={styles.twoCol} style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Create Menu Item</h2>
+              </div>
+              <div className={styles.panelBody}>
+                <form onSubmit={handleCreateProduct} className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Item Name</label>
+                    <input type="text" className={styles.formControl} required value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Price (₦)</label>
+                    <input type="number" className={styles.formControl} required value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Category</label>
+                    <select className={styles.formControl} value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
+                      <option value="Main">Main</option>
+                      <option value="Swallow">Swallow</option>
+                      <option value="Proteins">Proteins</option>
+                      <option value="Drinks">Drinks</option>
+                      <option value="Sides">Sides</option>
+                    </select>
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Item Image</label>
+                    <input type="file" accept="image/*" className={styles.formControl} onChange={e => setProductImage(e.target.files[0])} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <button type="submit" className={styles.btnPrimary}>Add to Menu</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Current Menu</h2>
+              </div>
+              <div className={styles.tableWrapper}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Image</th>
+                      <th>Name</th>
+                      <th>Category</th>
+                      <th>Price</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map(p => (
+                      <tr key={p._id}>
+                        <td>
+                          {p.imageUrl ? (
+                            <img src={p.imageUrl} alt={p.name} style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} />
+                          ) : (
+                            <div style={{ width: '40px', height: '40px', background: '#f1f5f9', borderRadius: '6px' }}></div>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{p.name}</td>
+                        <td><span className={`${styles.badge} ${styles.badgeGray}`}>{p.category}</span></td>
+                        <td style={{ fontWeight: 800 }}>₦{p.price}</td>
+                        <td>
+                          <button className={styles.btnGhost} onClick={() => deleteProduct(p._id)}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                    {products.length === 0 && <tr><td colSpan="5" className={styles.emptyState}>No menu items found.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }

@@ -37,9 +37,9 @@ export default function DashboardLayout({ children }) {
     { name: 'POS / Sales', path: '/dashboard/pos', roles: ['Sales', 'Manager', 'SuperAdmin'] },
     { name: 'Kitchen', path: '/dashboard/kitchen', roles: ['Kitchen', 'Manager', 'SuperAdmin'] },
     { name: 'Store / Inventory', path: '/dashboard/store', roles: ['Store', 'Manager', 'SuperAdmin'] },
+    { name: 'Finance', path: '/dashboard/finance', roles: ['Finance', 'Manager', 'SuperAdmin'] },
     { name: 'Manager Overview', path: '/dashboard/manager', roles: ['Manager', 'SuperAdmin'] },
     { name: 'Admin', path: '/dashboard/admin', roles: ['SuperAdmin'] },
-    { name: 'Attendance', path: '/dashboard/attendance', roles: ['Sales', 'Kitchen', 'Store', 'Manager', 'SuperAdmin'] },
   ];
 
   const visibleLinks = navItems.filter(item => item.roles.includes(user.role));
@@ -72,17 +72,6 @@ export default function DashboardLayout({ children }) {
               >
                 {link.name}
               </Link>
-              
-              {/* POS Sublinks */}
-              {link.path === '/dashboard/pos' && (pathname === '/dashboard/pos' || user.role === 'Sales') && (
-                <div className={styles.subLinks}>
-                  <Link href="/dashboard/pos?view=Main" className={`${styles.subLink} ${pathname === '/dashboard/pos' && (!new URLSearchParams(window.location.search).get('view') || new URLSearchParams(window.location.search).get('view') === 'Main') ? styles.subActive : ''}`}>🏠 POS Main</Link>
-                  <Link href="/dashboard/pos?view=Website" className={`${styles.subLink} ${new URLSearchParams(window.location.search).get('view') === 'Website' ? styles.subActive : ''}`}>🌐 Website Orders</Link>
-                  <Link href="/dashboard/pos?view=Glovo" className={`${styles.subLink} ${new URLSearchParams(window.location.search).get('view') === 'Glovo' ? styles.subActive : ''}`}>🛵 Glovo Orders</Link>
-                  <Link href="/dashboard/pos?view=Chowdeck" className={`${styles.subLink} ${new URLSearchParams(window.location.search).get('view') === 'Chowdeck' ? styles.subActive : ''}`}>🛍️ Chowdeck</Link>
-                  <Link href="/dashboard/pos?view=History" className={`${styles.subLink} ${new URLSearchParams(window.location.search).get('view') === 'History' ? styles.subActive : ''}`}>📜 Sales History</Link>
-                </div>
-              )}
             </div>
           ))}
         </nav>

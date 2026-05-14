@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../../../context/AppContext';
-import { useSearchParams } from 'next/navigation';
 import api from '../../../lib/api';
 import styles from './page.module.css';
 import { useToast } from '../../../context/ToastContext';
@@ -10,8 +9,6 @@ import { useToast } from '../../../context/ToastContext';
 export default function POSPage() {
   const { user } = useAppContext();
   const toast = useToast();
-  const searchParams = useSearchParams();
-  const activeView = searchParams.get('view') || 'Main';
   
   const [products, setProducts] = useState([]);
   const [posCart, setPosCart] = useState([]);
@@ -20,14 +17,7 @@ export default function POSPage() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastOrder, setLastOrder] = useState(null);
   const [settings, setSettings] = useState(null);
-  
   const [pendingTransfers, setPendingTransfers] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [historyFilter, setHistoryFilter] = useState('Today');
-  const [interventionActive, setInterventionActive] = useState(false);
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpInput, setOtpInput] = useState(['', '', '', '', '', '']);
-  const otpRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
   
   const receiptRef = useRef(null);
 
@@ -35,23 +25,21 @@ export default function POSPage() {
     fetchData();
   }, []);
 
+  // Broadcast cart changes to VFD screen
   useEffect(() => {
-    if (activeView === 'History') {
-      fetchFilteredOrders('Today');
-    }
-  }, [activeView]);
+    localStorage.setItem('vfd_cart', JSON.stringify(posCart));
+    localStorage.setItem('vfd_total', totalAmount.toString());
+  }, [posCart]);
 
   const fetchData = async () => {
     try {
-      const [prodRes, settRes, orderRes, transRes] = await Promise.all([
+      const [prodRes, settRes, transRes] = await Promise.all([
         api.get('/products'),
         api.get('/settings'),
-        api.get('/orders'),
         api.get('/transfers/pending')
       ]);
       setProducts(prodRes.data);
       setSettings(settRes.data);
-      setOrders(orderRes.data);
       setPendingTransfers(transRes.data);
     } catch (err) {
       console.error('Failed to fetch POS data', err);
@@ -66,34 +54,6 @@ export default function POSPage() {
     } catch (err) {
       console.error(err);
       toast.error('Failed to accept inventory');
-    }
-  };
-
-  const fetchFilteredOrders = async (filter) => {
-    setHistoryFilter(filter);
-    let startDate = new Date();
-    startDate.setHours(0,0,0,0);
-    
-    if (filter === 'Week') {
-      startDate.setDate(startDate.getDate() - 7);
-    } else if (filter === 'Month') {
-      startDate.setMonth(startDate.getMonth() - 1);
-    }
-    
-    try {
-      const res = await api.get(`/orders?startDate=${startDate.toISOString()}`);
-      setOrders(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const updateOrderStatus = async (id, status) => {
-    try {
-      await api.put(`/orders/${id}/status`, { status });
-      fetchData();
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -119,6 +79,10 @@ export default function POSPage() {
     });
   };
 
+  const removeFromCart = (id) => {
+    setPosCart(prev => prev.filter(item => item._id !== id));
+  };
+
   const totalAmount = posCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   const handleCheckout = async () => {
@@ -129,7 +93,7 @@ export default function POSPage() {
     }
 
     const orderData = {
-      orderType: activeView === 'Main' ? 'WalkIn' : activeView,
+      orderType: 'WalkIn',
       items: posCart.map(item => ({ product: item._id, quantity: item.quantity, priceAtTime: item.price })),
       totalAmount,
       status: 'Completed',
@@ -150,54 +114,15 @@ export default function POSPage() {
       setShowReceipt(true);
       fetchData();
       toast.success('Order saved successfully!');
+      
+      // Auto-trigger the print dialog after a short delay to allow the DOM to render the receipt
+      setTimeout(() => {
+        printReceipt();
+      }, 500);
     } catch (err) {
       console.error(err);
       toast.error('Failed to save order');
     }
-  };
-
-  const handleIntervention = () => {
-    if (interventionActive) {
-      setInterventionActive(false);
-      return;
-    }
-    setShowOtpModal(true);
-    setOtpInput(['', '', '', '', '', '']);
-    setTimeout(() => otpRefs[0].current?.focus(), 100);
-  };
-
-  const handleOtpChange = (index, value) => {
-    if (value.length > 1) value = value[0];
-    const newOtp = [...otpInput];
-    newOtp[index] = value;
-    setOtpInput(newOtp);
-
-    if (value && index < 5) {
-      otpRefs[index + 1].current.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !otpInput[index] && index > 0) {
-      otpRefs[index - 1].current.focus();
-    }
-  };
-
-  const verifyOtp = () => {
-    const enteredOtp = otpInput.join('');
-    if (enteredOtp === settings?.interventionOTP) {
-      setInterventionActive(true);
-      setShowOtpModal(false);
-      toast.success('Intervention mode activated');
-    } else {
-      toast.error('Invalid OTP code');
-      setOtpInput(['', '', '', '', '', '']);
-      otpRefs[0].current.focus();
-    }
-  };
-
-  const removeFromCart = (id) => {
-    setPosCart(prev => prev.filter(item => item._id !== id));
   };
 
   const printReceipt = () => {
@@ -207,257 +132,160 @@ export default function POSPage() {
     setShowReceipt(false);
   };
 
-  const handleCloseShift = async () => {
-    if (!confirm('Are you sure you want to close your shift and end attendance?')) return;
-    try {
-      await api.post('/attendance/check-out');
-      toast.success('Shift closed successfully.');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error closing shift');
-    }
+  const openVFDScreen = () => {
+    window.open('/vfd', '_blank', 'width=1024,height=768');
   };
 
   return (
     <div className={styles.posContainer}>
-        {activeView === 'Main' && (
-          <>
-            {/* Menu Section */}
-            <div className={styles.menuSection}>
-              {pendingTransfers.length > 0 && (
-                <div style={{ background: '#fffbeb', border: '1px solid #fef08a', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '0.9rem', color: '#854d0e', marginBottom: '0.5rem' }}>📦 Incoming from Kitchen</h3>
-                  <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                    {pendingTransfers.map(t => (
-                      <div key={t._id} style={{ background: 'white', padding: '0.75rem', borderRadius: '6px', minWidth: '220px', border: '1px solid #fef08a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                        <div>
-                          <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{t.product?.name}</div>
-                          <div style={{ fontSize: '0.8rem', color: '#666' }}>Qty: {t.quantity} | By: {t.handledBy?.username}</div>
-                        </div>
-                        <button 
-                          onClick={() => handleAcceptTransfer(t._id)}
-                          style={{ background: '#57a74a', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
-                        >
-                          Accept
-                        </button>
-                      </div>
-                    ))}
+      {/* Menu Section */}
+      <div className={styles.menuSection}>
+        {pendingTransfers.length > 0 && (
+          <div style={{ background: '#fffbeb', border: '1px solid #fef08a', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '0.9rem', color: '#854d0e', marginBottom: '0.5rem' }}>📦 Incoming from Kitchen</h3>
+            <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+              {pendingTransfers.map(t => (
+                <div key={t._id} style={{ background: 'white', padding: '0.75rem', borderRadius: '6px', minWidth: '220px', border: '1px solid #fef08a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{t.product?.name}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#666' }}>Qty: {t.quantity} | By: {t.handledBy?.username}</div>
                   </div>
+                  <button 
+                    onClick={() => handleAcceptTransfer(t._id)}
+                    style={{ background: '#57a74a', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                  >
+                    Accept
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className={styles.header}>
+          <h1 className={styles.title}>Walk-in Orders</h1>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button 
+              className={styles.shiftBtn} 
+              onClick={openVFDScreen}
+              style={{ background: '#8b5cf6', color: 'white' }}
+            >
+              🖥️ Open VFD Screen
+            </button>
+          </div>
+        </div>
+        
+        <div className={styles.menuGrid}>
+          {products.map(product => (
+            <div key={product._id} className={styles.menuCard} onClick={() => addToPosCart(product)}>
+              {product.imageUrl && (
+                <div 
+                  style={{ 
+                    height: '100px', 
+                    width: '100%', 
+                    backgroundImage: `url(${product.imageUrl})`, 
+                    backgroundSize: 'cover', 
+                    backgroundPosition: 'center',
+                    borderRadius: '4px',
+                    marginBottom: '0.5rem'
+                  }} 
+                />
+              )}
+              {!product.imageUrl && (
+                <div 
+                  style={{ 
+                    height: '100px', 
+                    width: '100%', 
+                    backgroundColor: '#f3f4f6', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    borderRadius: '4px',
+                    marginBottom: '0.5rem',
+                    color: '#9ca3af',
+                    fontSize: '0.8rem'
+                  }}
+                >
+                  No Image
                 </div>
               )}
-              <div className={styles.header}>
-                <h1 className={styles.title}>Walk-in Orders</h1>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button 
-                    className={`${styles.shiftBtn} ${interventionActive ? styles.interventionActiveBtn : ''}`} 
-                    onClick={handleIntervention}
-                    style={{ background: interventionActive ? '#ef4444' : '#6366f1', color: 'white' }}
-                  >
-                    {interventionActive ? '🔓 End Intervention' : '🔒 Intervention'}
-                  </button>
-                  <button className={styles.shiftBtn} onClick={handleCloseShift}>Close Shift</button>
-                </div>
-              </div>
-              
-              <div className={styles.menuGrid}>
-                {products.map(product => (
-                  <div key={product._id} className={styles.menuCard} onClick={() => addToPosCart(product)}>
-                    {product.imageUrl && (
-                      <div 
-                        style={{ 
-                          height: '100px', 
-                          width: '100%', 
-                          backgroundImage: `url(${product.imageUrl})`, 
-                          backgroundSize: 'cover', 
-                          backgroundPosition: 'center',
-                          borderRadius: '4px',
-                          marginBottom: '0.5rem'
-                        }} 
-                      />
-                    )}
-                    {!product.imageUrl && (
-                      <div 
-                        style={{ 
-                          height: '100px', 
-                          width: '100%', 
-                          backgroundColor: '#f3f4f6', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center',
-                          borderRadius: '4px',
-                          marginBottom: '0.5rem',
-                          color: '#9ca3af',
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        No Image
-                      </div>
-                    )}
-                    <div className={styles.menuItemName}>{product.name}</div>
-                    <div className={styles.menuItemPrice}>₦{product.price}</div>
-                  </div>
-                ))}
-              </div>
+              <div className={styles.menuItemName}>{product.name}</div>
+              <div className={styles.menuItemPrice}>₦{product.price}</div>
             </div>
+          ))}
+        </div>
+      </div>
 
-            {/* Cart Section */}
-            <div className={styles.cartSection}>
-              <h2 className={styles.cartTitle}>Current Order</h2>
-              
-              <div className={styles.cartItems}>
-                {posCart.length === 0 && <p style={{color: '#999', textAlign:'center'}}>Cart is empty</p>}
-                {posCart.map(item => (
-                  <div key={item._id} className={styles.cartItem}>
-                    <div>
-                      <div style={{fontWeight: 'bold'}}>{item.name}</div>
-                      <div style={{fontSize: '0.9rem', color: '#666'}}>₦{item.price}</div>
-                    </div>
-                    <div className={styles.qtyControl}>
-                      {interventionActive ? (
-                        <>
-                          <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, -1)}>-</button>
-                          <span>{item.quantity}</span>
-                          <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, 1)}>+</button>
-                          <button 
-                            className={styles.removeBtn} 
-                            onClick={() => removeFromCart(item._id)}
-                            style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}
-                          >
-                            ×
-                          </button>
-                        </>
-                      ) : (
-                        <span style={{ fontWeight: 'bold' }}>x {item.quantity}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+      {/* Cart Section */}
+      <div className={styles.cartSection}>
+        <h2 className={styles.cartTitle}>Current Order</h2>
+        
+        <div className={styles.cartItems}>
+          {posCart.length === 0 && <p style={{color: '#999', textAlign:'center'}}>Cart is empty</p>}
+          {posCart.map(item => (
+            <div key={item._id} className={styles.cartItem}>
+              <div>
+                <div style={{fontWeight: 'bold'}}>{item.name}</div>
+                <div style={{fontSize: '0.9rem', color: '#666'}}>₦{item.price}</div>
               </div>
-
-              <div className={styles.cartSummary}>
-                <div className={styles.totalRow}>
-                  <span>Total</span>
-                  <span>₦{totalAmount}</span>
-                </div>
-
-                <div className={styles.paymentMethods}>
-                  {['Cash', 'Card', 'Transfer', (interventionActive ? 'PR' : null)].filter(Boolean).map(method => (
-                    <button 
-                      key={method}
-                      className={`${styles.payBtn} ${paymentMethod === method ? styles.selected : ''}`}
-                      onClick={() => setPaymentMethod(method)}
-                    >
-                      {method}
-                    </button>
-                  ))}
-                </div>
-
-                {paymentMethod === 'PR' && (
-                  <div className={styles.prSection}>
-                    <input 
-                      type="text" 
-                      className={styles.prInput} 
-                      placeholder="PR Comment (e.g. MD)"
-                      value={prComment}
-                      onChange={e => setPrComment(e.target.value)}
-                    />
-                    <small style={{color: '#eab308'}}>Requires Manager Approval later</small>
-                  </div>
-                )}
-
+              <div className={styles.qtyControl}>
+                <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, -1)}>-</button>
+                <span style={{ fontWeight: 'bold' }}>{item.quantity}</span>
+                <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, 1)}>+</button>
                 <button 
-                  className={`btn-primary ${styles.checkoutBtn}`} 
-                  onClick={handleCheckout}
-                  disabled={posCart.length === 0}
+                  className={styles.removeBtn} 
+                  onClick={() => removeFromCart(item._id)}
+                  style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}
                 >
-                  Confirm & Print Receipt
+                  ×
                 </button>
               </div>
             </div>
-          </>
-        )}
+          ))}
+        </div>
 
-        {(activeView === 'Website' || activeView === 'Glovo' || activeView === 'Chowdeck') && (
-          <div className={styles.fullView}>
-            <h1 className={styles.title}>{activeView} Orders</h1>
-            <div className={styles.orderGrid}>
-              {orders.filter(o => o.orderType === (activeView === 'Website' ? 'Online' : activeView)).map(order => (
-                <div key={order._id} className={styles.orderCard}>
-                  <div className={styles.orderHeader}>
-                    <span className={styles.orderId}>Order #{order._id.slice(-6)}</span>
-                    <span className={`${styles.orderStatus} ${styles[order.status]}`}>{order.status}</span>
-                  </div>
-                  <div className={styles.orderInfo}>
-                    <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
-                    <p><strong>Phone:</strong> {order.customerPhone || 'N/A'}</p>
-                    <p><strong>Total:</strong> ₦{order.totalAmount}</p>
-                  </div>
-                  <div className={styles.orderItems}>
-                    {order.items.map((item, i) => (
-                      <div key={i}>{item.product?.name} x {item.quantity}</div>
-                    ))}
-                  </div>
-                  {order.status === 'Pending' && (
-                    <div className={styles.orderActions}>
-                      <button className={styles.acceptBtn} onClick={() => updateOrderStatus(order._id, 'Accepted')}>Accept</button>
-                      <button className={styles.declineBtn} onClick={() => updateOrderStatus(order._id, 'Declined')}>Decline</button>
-                    </div>
-                  )}
-                  {order.status === 'Accepted' && (
-                    <button className={styles.completeBtn} onClick={() => updateOrderStatus(order._id, 'Completed')}>Mark as Completed</button>
-                  )}
-                </div>
-              ))}
-              {orders.filter(o => o.orderType === (activeView === 'Website' ? 'Online' : activeView)).length === 0 && (
-                <p>No {activeView} orders found.</p>
-              )}
-            </div>
+        <div className={styles.cartSummary}>
+          <div className={styles.totalRow}>
+            <span>Total</span>
+            <span>₦{totalAmount}</span>
           </div>
-        )}
 
-        {activeView === 'History' && (
-          <div className={styles.fullView}>
-            <div className={styles.header}>
-              <h1 className={styles.title}>Sales History</h1>
-              <div className={styles.filters}>
-                {['Today', 'Week', 'Month'].map(f => (
-                  <button 
-                    key={f} 
-                    className={`${styles.filterBtn} ${historyFilter === f ? styles.activeFilter : ''}`}
-                    onClick={() => fetchFilteredOrders(f)}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className={styles.historyTableContainer}>
-              <table className={styles.historyTable}>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>ID</th>
-                    <th>Type</th>
-                    <th>Items</th>
-                    <th>Staff</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map(order => (
-                    <tr key={order._id}>
-                      <td>{new Date(order.createdAt).toLocaleString()}</td>
-                      <td>#{order._id.slice(-6)}</td>
-                      <td>{order.orderType}</td>
-                      <td>{order.items.length} items</td>
-                      <td>{order.salesPerson?.username || 'N/A'}</td>
-                      <td>₦{order.totalAmount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className={styles.paymentMethods}>
+            {['Cash', 'Card', 'Transfer', 'PR'].map(method => (
+              <button 
+                key={method}
+                className={`${styles.payBtn} ${paymentMethod === method ? styles.selected : ''}`}
+                onClick={() => setPaymentMethod(method)}
+              >
+                {method}
+              </button>
+            ))}
           </div>
-        )}
+
+          {paymentMethod === 'PR' && (
+            <div className={styles.prSection}>
+              <input 
+                type="text" 
+                className={styles.prInput} 
+                placeholder="PR Comment (e.g. MD's Guest)"
+                value={prComment}
+                onChange={e => setPrComment(e.target.value)}
+                style={{ width: '100%', padding: '0.75rem', borderRadius: '4px', border: '1px solid #ddd', marginTop: '1rem' }}
+              />
+              <small style={{color: '#eab308', display: 'block', marginTop: '0.5rem'}}>Requires Manager Approval later</small>
+            </div>
+          )}
+
+          <button 
+            className={`btn-primary ${styles.checkoutBtn}`} 
+            onClick={handleCheckout}
+            disabled={posCart.length === 0}
+            style={{ marginTop: '1rem', width: '100%' }}
+          >
+            Confirm & Print Receipt
+          </button>
+        </div>
+      </div>
 
       {/* Receipt Print Modal */}
       {showReceipt && lastOrder && (
@@ -502,54 +330,6 @@ export default function POSPage() {
                 <button className="btn-primary" style={{flex: 1}} onClick={printReceipt}>Print</button>
                 <button className="btn-secondary" style={{flex: 1}} onClick={() => setShowReceipt(false)}>Close</button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* OTP Modal */}
-      {showOtpModal && (
-        <div className={styles.modalOverlay} style={{ zIndex: 1000 }}>
-          <div className={styles.modalContent} style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem' }}>
-            <h2 style={{ marginBottom: '0.5rem' }}>Enter Intervention OTP</h2>
-            <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '2rem' }}>Please enter the 6-digit code from the Manager Dashboard</p>
-            
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginBottom: '2.5rem' }}>
-              {otpInput.map((digit, i) => (
-                <input 
-                  key={i}
-                  ref={otpRefs[i]}
-                  type="text"
-                  maxLength="1"
-                  value={digit}
-                  onChange={(e) => handleOtpChange(i, e.target.value)}
-                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                  style={{ 
-                    width: '45px', height: '55px', fontSize: '1.5rem', fontWeight: 'bold', 
-                    textAlign: 'center', borderRadius: '8px', border: '2px solid #e2e8f0',
-                    outline: 'none', transition: 'border-color 0.2s'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                  onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-                />
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button 
-                className="btn-secondary" 
-                style={{ flex: 1 }} 
-                onClick={() => setShowOtpModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn-primary" 
-                style={{ flex: 1 }} 
-                onClick={verifyOtp}
-              >
-                Verify
-              </button>
             </div>
           </div>
         </div>

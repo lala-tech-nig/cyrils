@@ -23,6 +23,18 @@ const transferSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  unit: {
+    type: String,
+    enum: ['Number', 'Kg', 'Gram'],
+    default: 'Number'
+  },
+  managerStatus: {
+    type: String,
+    enum: ['Pending', 'Approved', 'Rejected'],
+    default: 'Pending'
+  },
+  kitchenComment: { type: String },
+  managerComment: { type: String },
   status: {
     type: String,
     enum: ['Pending', 'Accepted', 'Rejected'],
