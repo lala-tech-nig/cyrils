@@ -344,6 +344,7 @@ export default function AdminDashboard() {
                       <option value="Sales">Sales</option>
                       <option value="Kitchen">Kitchen</option>
                       <option value="Store">Store</option>
+                      <option value="Order">Order</option>
                     </select>
                   </div>
                   <div className={`${styles.formGroup} ${styles.full}`}>
