@@ -24,7 +24,13 @@ export default function LandingPage() {
           api.get('/promotions')
         ]);
         
-        if (prodRes.status === 'fulfilled') setProducts(prodRes.value.data);
+        if (prodRes.status === 'fulfilled') {
+          const productsWithMargin = prodRes.value.data.map(p => ({
+            ...p,
+            price: Math.ceil(p.price * 1.2)
+          }));
+          setProducts(productsWithMargin);
+        }
         if (settRes.status === 'fulfilled') setSettings(settRes.value.data);
         if (promoRes.status === 'fulfilled') setPromotions(promoRes.value.data);
         

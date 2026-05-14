@@ -4,7 +4,7 @@ const Transfer = require('../models/Transfer');
 const { protect, authorize } = require('../middleware/auth');
 
 // GET all transfers
-router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) => {
+router.get('/', protect, authorize('Manager', 'SuperAdmin', 'Kitchen'), async (req, res) => {
   try {
     const transfers = await Transfer.find()
       .populate('product', 'name')

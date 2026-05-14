@@ -124,6 +124,8 @@ export default function StoreDashboard() {
     try {
       const payload = {
         ...supplyForm,
+        quantity: Number(supplyForm.quantity),
+        cost: Number(supplyForm.cost),
         category: supplyForm.category === 'new' ? supplyForm.newCategory : supplyForm.category
       };
       

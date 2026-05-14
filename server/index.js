@@ -34,6 +34,11 @@ io.on('connection', (socket) => {
     io.emit('order_received', orderData);
   });
 
+  socket.on('join_department', (role) => {
+    socket.join(role);
+    console.log(`Socket ${socket.id} joined room ${role}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
@@ -59,6 +64,7 @@ app.use('/api/kitchen', require('./routes/kitchen'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/kitchen-requests', require('./routes/kitchenRequests'));
 app.use('/api/finance', require('./routes/finance'));
+app.use('/api/messages', require('./routes/messages'));
 
 app.get('/', (req, res) => {
   res.send('Cyrils Foods API is running');

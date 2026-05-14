@@ -19,6 +19,7 @@ export default function POSPage() {
   const [prComment, setPrComment] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastOrder, setLastOrder] = useState(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [settings, setSettings] = useState(null);
   const [pendingTransfers, setPendingTransfers] = useState([]);
   
@@ -95,6 +96,8 @@ export default function POSPage() {
       return;
     }
 
+    setIsCheckingOut(true);
+
     const orderData = {
       orderType: 'WalkIn',
       items: posCart.map(item => ({ product: item._id, quantity: item.quantity, priceAtTime: item.price })),
@@ -131,6 +134,8 @@ export default function POSPage() {
     } catch (err) {
       console.error(err);
       toast.error('Failed to save order');
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -175,7 +180,7 @@ export default function POSPage() {
         )}
         
         <div className={styles.header}>
-          <h1 className={styles.title}>Walk-in Orders</h1>
+          <h1 className={styles.title}>SALES</h1>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <div className={styles.filters} style={{ overflowX: 'auto', paddingBottom: '4px' }}>
               {categories.map(cat => (
@@ -304,10 +309,10 @@ export default function POSPage() {
           <button 
             className={`btn-primary ${styles.checkoutBtn}`} 
             onClick={handleCheckout}
-            disabled={posCart.length === 0}
-            style={{ marginTop: '1rem', width: '100%' }}
+            disabled={posCart.length === 0 || isCheckingOut}
+            style={{ marginTop: '1rem', width: '100%', opacity: isCheckingOut ? 0.7 : 1 }}
           >
-            Confirm & Print Receipt
+            {isCheckingOut ? 'Processing...' : 'Confirm & Print Receipt'}
           </button>
         </div>
       </div>

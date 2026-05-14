@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import ChatWidget from '../../components/ChatWidget';
 import styles from './layout.module.css';
 
 export default function DashboardLayout({ children }) {
@@ -35,6 +36,7 @@ export default function DashboardLayout({ children }) {
 
   const navItems = [
     { name: 'POS / Sales', path: '/dashboard/pos', roles: ['Sales', 'Manager', 'SuperAdmin'] },
+    { name: 'Online Orders', path: '/dashboard/order', roles: ['Order', 'Manager', 'SuperAdmin'] },
     { name: 'Kitchen', path: '/dashboard/kitchen', roles: ['Kitchen', 'Manager', 'SuperAdmin'] },
     { name: 'Store / Inventory', path: '/dashboard/store', roles: ['Store', 'Manager', 'SuperAdmin'] },
     { name: 'Finance', path: '/dashboard/finance', roles: ['Finance', 'Manager', 'SuperAdmin'] },
@@ -85,6 +87,8 @@ export default function DashboardLayout({ children }) {
       <main className={styles.mainContent}>
         {children}
       </main>
+
+      <ChatWidget />
     </div>
   );
 }
