@@ -343,7 +343,7 @@ export default function POSPage() {
                 <img src="/logo.png" alt="Logo" style={{ height: '50px', objectFit: 'contain' }} />
               </div>
               <h2>{settings?.storeName || "Cyril's Foods"}</h2>
-              <p>{settings?.address || "123 Food Avenue, Lagos"}</p>
+              <p>{settings?.address || "92, YAYA ABATAN ROAD, OPPOSITE NNPC FILLING STATION, OGBA"}</p>
               <div className={styles.receiptDivider}></div>
               <p>Receipt ID: {lastOrder._id}</p>
               <p>Date: {lastOrder.date}</p>
