@@ -211,13 +211,13 @@ export default function POSPage() {
                 </button>
               ))}
             </div>
-            <button 
+            {/* <button 
               className={styles.shiftBtn} 
               onClick={openVFDScreen}
               style={{ background: '#8b5cf6', color: 'white', whiteSpace: 'nowrap' }}
             >
               🖥️ Open VFD Screen
-            </button>
+            </button> */}
           </div>
         </div>
         
