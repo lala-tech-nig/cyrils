@@ -831,6 +831,9 @@ export default function ManagerDashboard() {
                       <option value="SWALLOW">SWALLOW</option>
                       <option value="SIDE">SIDE</option>
                       <option value="DRINK">DRINK</option>
+                      <option value="PACK">PACK</option>
+                      <option value="ICE CREAM">ICE CREAM</option>
+                      <option value="PASTRY">PASTRY</option>
                     </select>
                   </div>
                   <div className={`${styles.formGroup} ${styles.full}`}>

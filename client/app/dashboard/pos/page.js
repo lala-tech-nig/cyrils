@@ -15,7 +15,7 @@ export default function POSPage() {
   const [posCart, setPosCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
-  const categories = ['All', 'FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK'];
+  const categories = ['All', 'FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK', 'PACK', 'ICE CREAM', 'PASTRY'];
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [prComment, setPrComment] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
