@@ -14,6 +14,7 @@ export default function POSPage() {
   const [products, setProducts] = useState([]);
   const [posCart, setPosCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
   const categories = ['All', 'FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK'];
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [prComment, setPrComment] = useState('');
@@ -42,7 +43,8 @@ export default function POSPage() {
         api.get('/settings'),
         api.get('/transfers/pending')
       ]);
-      setProducts(prodRes.data);
+      const sortedProducts = prodRes.data.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+      setProducts(sortedProducts);
       setSettings(settRes.data);
       setPendingTransfers(transRes.data);
     } catch (err) {
@@ -151,7 +153,11 @@ export default function POSPage() {
     window.open('/vfd', '_blank', `width=1024,height=768,left=${leftPos},top=0`);
   };
 
-  const filteredProducts = selectedCategory === 'All' ? products : products.filter(p => (p.category || '').toUpperCase() === selectedCategory);
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = selectedCategory === 'All' || (p.category || '').toUpperCase() === selectedCategory;
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   return (
     <div className={styles.posContainer}>
@@ -179,8 +185,19 @@ export default function POSPage() {
           </div>
         )}
         
-        <div className={styles.header}>
-          <h1 className={styles.title}>SALES</h1>
+        <div className={styles.header} style={{ flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <h1 className={styles.title}>SALES</h1>
+            <input 
+              type="text" 
+              placeholder="🔍 Search menu..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1.5px solid #e2e8f0', minWidth: '220px', fontSize: '0.9rem', outline: 'none', transition: 'border-color 0.2s' }}
+              onFocus={(e) => e.target.style.borderColor = '#f97316'}
+              onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+            />
+          </div>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <div className={styles.filters} style={{ overflowX: 'auto', paddingBottom: '4px' }}>
               {categories.map(cat => (
