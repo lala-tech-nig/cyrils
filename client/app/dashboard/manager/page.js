@@ -28,6 +28,9 @@ export default function ManagerDashboard() {
   // Forms & Settings
   const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'FOOD' });
   const [productImage, setProductImage] = useState(null);
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [editProductData, setEditProductData] = useState({ name: '', price: '', category: 'FOOD' });
+  const [editProductImage, setEditProductImage] = useState(null);
   const [newPromo, setNewPromo] = useState({ title: '', description: '', order: 0 });
   const [promoMedia, setPromoMedia] = useState(null);
   const [settings, setSettings] = useState({ isMarketOpen: true });
@@ -207,6 +210,31 @@ export default function ManagerDashboard() {
     } catch (err) { 
       toast.error(err.response?.data?.message || 'Error creating product'); 
     }
+  };
+
+  const handleUpdateProduct = async (id, e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('name', editProductData.name);
+    formData.append('price', editProductData.price);
+    formData.append('category', editProductData.category);
+    if (editProductImage) formData.append('image', editProductImage);
+
+    try {
+      await api.put(`/products/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setEditingProductId(null);
+      setEditProductImage(null);
+      fetchDashboardData();
+      toast.success('Menu item updated');
+    } catch (err) { 
+      toast.error(err.response?.data?.message || 'Error updating product'); 
+    }
+  };
+
+  const startEditingProduct = (product) => {
+    setEditingProductId(product._id);
+    setEditProductData({ name: product.name, price: product.price, category: product.category || 'FOOD' });
+    setEditProductImage(null);
   };
 
   const deleteProduct = async (id) => {
@@ -864,18 +892,48 @@ export default function ManagerDashboard() {
                   <tbody>
                     {products.map(p => (
                       <tr key={p._id}>
-                        <td style={{ padding: '0.5rem 1rem' }}>
-                          {p.imageUrl ? (
-                            <img src={p.imageUrl} alt={p.name} style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} />
-                          ) : (
-                            <div style={{ width: '40px', height: '40px', background: '#f1f5f9', borderRadius: '6px' }}></div>
-                          )}
-                        </td>
-                        <td style={{ fontWeight: 600 }}>{p.name}</td>
-                        <td style={{ fontWeight: 800 }}>₦{p.price.toLocaleString()}</td>
-                        <td>
-                          <button className={styles.btnGhost} onClick={() => deleteProduct(p._id)}>Delete</button>
-                        </td>
+                        {editingProductId === p._id ? (
+                          <td colSpan="4" style={{ padding: '1rem', background: '#f8fafc' }}>
+                            <form onSubmit={(e) => handleUpdateProduct(p._id, e)} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                              <input type="text" className={styles.formControl} required value={editProductData.name} onChange={e => setEditProductData({...editProductData, name: e.target.value})} placeholder="Name" style={{ flex: 1, minWidth: '150px' }} />
+                              <input type="number" className={styles.formControl} required value={editProductData.price} onChange={e => setEditProductData({...editProductData, price: e.target.value})} placeholder="Price" style={{ width: '100px' }} />
+                              <select className={styles.formControl} value={editProductData.category} onChange={e => setEditProductData({...editProductData, category: e.target.value})} style={{ width: '120px' }}>
+                                <option value="FOOD">FOOD</option>
+                                <option value="PROTEIN">PROTEIN</option>
+                                <option value="SOUP">SOUP</option>
+                                <option value="SWALLOW">SWALLOW</option>
+                                <option value="SIDE">SIDE</option>
+                                <option value="DRINK">DRINK</option>
+                                <option value="PACK">PACK</option>
+                                <option value="ICE CREAM">ICE CREAM</option>
+                                <option value="PASTRY">PASTRY</option>
+                              </select>
+                              <input type="file" accept="image/*" className={styles.formControl} onChange={e => setEditProductImage(e.target.files[0])} style={{ flex: 1, minWidth: '180px', padding: '0.3rem' }} />
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button type="submit" className={styles.btnSuccess} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>Save</button>
+                                <button type="button" className={styles.btnGhost} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }} onClick={() => setEditingProductId(null)}>Cancel</button>
+                              </div>
+                            </form>
+                          </td>
+                        ) : (
+                          <>
+                            <td style={{ padding: '0.5rem 1rem' }}>
+                              {p.imageUrl ? (
+                                <img src={p.imageUrl} alt={p.name} style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '40px', height: '40px', background: '#f1f5f9', borderRadius: '6px' }}></div>
+                              )}
+                            </td>
+                            <td style={{ fontWeight: 600 }}>{p.name}</td>
+                            <td style={{ fontWeight: 800 }}>₦{p.price.toLocaleString()}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button className={styles.btnSecondary} style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => startEditingProduct(p)}>Edit</button>
+                                <button className={styles.btnGhost} style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => deleteProduct(p._id)}>Delete</button>
+                              </div>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>

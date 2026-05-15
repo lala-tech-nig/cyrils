@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const settingsSchema = new mongoose.Schema({
   storeName: { type: String, default: "Cyril's Foods" },
-  address: { type: String, default: "123 Food Avenue, Lagos" },
+  address: { type: String, default: "92, YAYA ABATAN ROAD, OPPOSITE NNPC FILLING STATION, OGBA" },
   phone: { type: String, default: "+2340000000000" },
   heroTitle: { type: String, default: "Taste the Magic of Home" },
   heroSubtitle: { type: String, default: "Order fresh, delicious meals directly from our kitchen to your table." },
