@@ -438,7 +438,7 @@ export default function POSPage() {
         {pendingOrders.length > 0 && (
           <div 
             style={{ 
-              position: 'fixed', right: '20px', top: '150px', background: '#fff', border: '2px solid #f97316', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', zIndex: isPendingDragging ? 9999 : 100, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '60vh', overflowY: 'auto', width: '220px',
+              position: 'fixed', left: '15px', top: '350px', background: '#fff', border: '2px solid #f97316', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', zIndex: isPendingDragging ? 9999 : 100, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '60vh', overflowY: 'auto', width: '220px',
               transform: `translate(${pendingPosition.x}px, ${pendingPosition.y}px)`,
               transition: isPendingDragging ? 'none' : 'transform 0.1s'
             }}
