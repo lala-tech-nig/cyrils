@@ -146,7 +146,7 @@ export default function POSPage() {
     setPendingOrders(prev => prev.filter(o => o.id !== id));
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (posCart.length === 0) return;
     if (paymentMethod === 'PR' && !prComment.trim()) {
       toast.warning("Please enter a PR comment (e.g., 'MD's Guest').");
@@ -162,6 +162,23 @@ export default function POSPage() {
       }
     }
 
+    // Prepare preview receipt
+    const orderPreview = {
+      _id: 'Pending Save...',
+      items: posCart,
+      totalAmount,
+      paymentMethod,
+      prComment: paymentMethod === 'PR' ? prComment : '',
+      salesPersonName: user?.username || 'Unknown Staff',
+      date: new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })
+    };
+    
+    setLastOrder(orderPreview);
+    setShowReceipt(true);
+  };
+
+  const printReceipt = async () => {
+    if (isCheckingOut) return;
     setIsCheckingOut(true);
 
     const orderData = {
@@ -184,14 +201,13 @@ export default function POSPage() {
       const savedOrder = res.data;
       
       const orderToPrint = {
-        ...savedOrder,
-        items: posCart,
+        ...lastOrder,
+        _id: savedOrder._id,
         date: new Date(savedOrder.createdAt).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })
       };
       
       flushSync(() => {
         setLastOrder(orderToPrint);
-        setShowReceipt(true);
       });
       
       window.print();
@@ -209,14 +225,6 @@ export default function POSPage() {
     } finally {
       setIsCheckingOut(false);
     }
-  };
-
-  const printReceipt = () => {
-    window.print();
-    setPosCart([]);
-    setPrComment('');
-    setMixedPayments({ cash: '', card: '', transfer: '' });
-    setShowReceipt(false);
   };
 
   const openVFDScreen = () => {
@@ -418,10 +426,10 @@ export default function POSPage() {
             <button 
               className={`btn-primary ${styles.checkoutBtn}`} 
               onClick={handleCheckout}
-              disabled={posCart.length === 0 || isCheckingOut}
-              style={{ flex: 2, margin: 0, opacity: isCheckingOut ? 0.7 : 1, padding: '1rem', borderRadius: '8px' }}
+              disabled={posCart.length === 0}
+              style={{ flex: 2, margin: 0, padding: '1rem', borderRadius: '8px' }}
             >
-              {isCheckingOut ? 'Processing...' : 'Confirm & Print'}
+              Preview Receipt
             </button>
           </div>
         </div>
@@ -494,8 +502,12 @@ export default function POSPage() {
               <p>Please come again.</p>
               
               <div className="no-print" style={{marginTop: '2rem', display: 'flex', gap: '1rem'}}>
-                <button className="btn-primary" style={{flex: 1}} onClick={printReceipt}>Print</button>
-                <button className="btn-secondary" style={{flex: 1}} onClick={() => setShowReceipt(false)}>Close</button>
+                <button className="btn-primary" style={{flex: 1, opacity: isCheckingOut ? 0.7 : 1}} onClick={printReceipt} disabled={isCheckingOut}>
+                  {isCheckingOut ? 'Saving...' : 'Save & Print'}
+                </button>
+                <button className="btn-secondary" style={{flex: 1}} onClick={() => setShowReceipt(false)} disabled={isCheckingOut}>
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
