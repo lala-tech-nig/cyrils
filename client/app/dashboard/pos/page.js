@@ -23,6 +23,13 @@ export default function POSPage() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [settings, setSettings] = useState(null);
   const [pendingTransfers, setPendingTransfers] = useState([]);
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [mixedPayments, setMixedPayments] = useState({ cash: '', card: '', transfer: '' });
+  
+  // Pending Orders Widget Dragging State
+  const [pendingPosition, setPendingPosition] = useState({ x: 0, y: 0 });
+  const [isPendingDragging, setIsPendingDragging] = useState(false);
+  const pendingDragOffset = useRef({ x: 0, y: 0 });
   
   const receiptRef = useRef(null);
 
@@ -35,6 +42,35 @@ export default function POSPage() {
     localStorage.setItem('vfd_cart', JSON.stringify(posCart));
     localStorage.setItem('vfd_total', totalAmount.toString());
   }, [posCart]);
+
+  // Handle Dragging for Pending Orders Widget
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isPendingDragging) return;
+      setPendingPosition({
+        x: e.clientX - pendingDragOffset.current.x,
+        y: e.clientY - pendingDragOffset.current.y
+      });
+    };
+    const handleMouseUp = () => setIsPendingDragging(false);
+
+    if (isPendingDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isPendingDragging]);
+
+  const handlePendingMouseDown = (e) => {
+    setIsPendingDragging(true);
+    pendingDragOffset.current = {
+      x: e.clientX - pendingPosition.x,
+      y: e.clientY - pendingPosition.y
+    };
+  };
 
   const fetchData = async () => {
     try {
@@ -91,11 +127,39 @@ export default function POSPage() {
 
   const totalAmount = posCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+  const handlePendOrder = () => {
+    if (posCart.length === 0) return;
+    const pendingId = Date.now().toString();
+    setPendingOrders(prev => [...prev, { id: pendingId, cart: [...posCart], time: new Date() }]);
+    setPosCart([]);
+    toast.info('Order pended successfully');
+  };
+
+  const handleResumeOrder = (id) => {
+    const pended = pendingOrders.find(o => o.id === id);
+    if (!pended) return;
+    if (posCart.length > 0) {
+      toast.warning('Please complete, clear, or pend the current active order first.');
+      return;
+    }
+    setPosCart(pended.cart);
+    setPendingOrders(prev => prev.filter(o => o.id !== id));
+  };
+
   const handleCheckout = async () => {
     if (posCart.length === 0) return;
     if (paymentMethod === 'PR' && !prComment.trim()) {
       toast.warning("Please enter a PR comment (e.g., 'MD's Guest').");
       return;
+    }
+    if (paymentMethod === 'Mixed') {
+      const cashAmt = Number(mixedPayments.cash) || 0;
+      const cardAmt = Number(mixedPayments.card) || 0;
+      const transferAmt = Number(mixedPayments.transfer) || 0;
+      if (cashAmt + cardAmt + transferAmt !== totalAmount) {
+        toast.warning(`Mixed payment amounts (₦${cashAmt + cardAmt + transferAmt}) must equal the total amount (₦${totalAmount}).`);
+        return;
+      }
     }
 
     setIsCheckingOut(true);
@@ -107,6 +171,11 @@ export default function POSPage() {
       status: 'Completed',
       paymentMethod,
       prComment: paymentMethod === 'PR' ? prComment : '',
+      mixedPayments: paymentMethod === 'Mixed' ? {
+        cash: Number(mixedPayments.cash) || 0,
+        card: Number(mixedPayments.card) || 0,
+        transfer: Number(mixedPayments.transfer) || 0
+      } : undefined,
       salesPersonName: user?.username || 'Unknown Staff'
     };
 
@@ -129,6 +198,7 @@ export default function POSPage() {
       
       setPosCart([]);
       setPrComment('');
+      setMixedPayments({ cash: '', card: '', transfer: '' });
       setShowReceipt(false);
       
       fetchData();
@@ -145,6 +215,7 @@ export default function POSPage() {
     window.print();
     setPosCart([]);
     setPrComment('');
+    setMixedPayments({ cash: '', card: '', transfer: '' });
     setShowReceipt(false);
   };
 
@@ -298,7 +369,7 @@ export default function POSPage() {
           </div>
 
           <div className={styles.paymentMethods}>
-            {['Cash', 'Card', 'Transfer', 'PR'].map(method => (
+            {['Cash', 'Card', 'Transfer', 'Mixed', 'PR'].map(method => (
               <button 
                 key={method}
                 className={`${styles.payBtn} ${paymentMethod === method ? styles.selected : ''}`}
@@ -308,6 +379,18 @@ export default function POSPage() {
               </button>
             ))}
           </div>
+
+          {paymentMethod === 'Mixed' && (
+            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#64748b', marginBottom: '0.5rem' }}>Split Payment Amounts:</div>
+              <input type="number" placeholder="Cash Amount" value={mixedPayments.cash} onChange={e => setMixedPayments({...mixedPayments, cash: e.target.value})} className={styles.prInput} style={{ marginBottom: 0 }} />
+              <input type="number" placeholder="Card Amount" value={mixedPayments.card} onChange={e => setMixedPayments({...mixedPayments, card: e.target.value})} className={styles.prInput} style={{ marginBottom: 0 }} />
+              <input type="number" placeholder="Transfer Amount" value={mixedPayments.transfer} onChange={e => setMixedPayments({...mixedPayments, transfer: e.target.value})} className={styles.prInput} style={{ marginBottom: 0 }} />
+              <div style={{ fontSize: '0.9rem', color: ((Number(mixedPayments.cash)||0) + (Number(mixedPayments.card)||0) + (Number(mixedPayments.transfer)||0)) === totalAmount ? '#16a34a' : '#ef4444', textAlign: 'right', fontWeight: 'bold', marginTop: '0.5rem' }}>
+                Remaining: ₦{totalAmount - ((Number(mixedPayments.cash)||0) + (Number(mixedPayments.card)||0) + (Number(mixedPayments.transfer)||0))}
+              </div>
+            </div>
+          )}
 
           {paymentMethod === 'PR' && (
             <div className={styles.prSection}>
@@ -323,15 +406,49 @@ export default function POSPage() {
             </div>
           )}
 
-          <button 
-            className={`btn-primary ${styles.checkoutBtn}`} 
-            onClick={handleCheckout}
-            disabled={posCart.length === 0 || isCheckingOut}
-            style={{ marginTop: '1rem', width: '100%', opacity: isCheckingOut ? 0.7 : 1 }}
-          >
-            {isCheckingOut ? 'Processing...' : 'Confirm & Print Receipt'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem' }}>
+            <button 
+              className={`btn-secondary`} 
+              onClick={handlePendOrder}
+              disabled={posCart.length === 0 || isCheckingOut}
+              style={{ flex: 1, padding: '1rem', opacity: posCart.length === 0 ? 0.5 : 1, fontWeight: 'bold', fontSize: '0.9rem', borderRadius: '8px' }}
+            >
+              ⏳ Pend Order
+            </button>
+            <button 
+              className={`btn-primary ${styles.checkoutBtn}`} 
+              onClick={handleCheckout}
+              disabled={posCart.length === 0 || isCheckingOut}
+              style={{ flex: 2, margin: 0, opacity: isCheckingOut ? 0.7 : 1, padding: '1rem', borderRadius: '8px' }}
+            >
+              {isCheckingOut ? 'Processing...' : 'Confirm & Print'}
+            </button>
+          </div>
         </div>
+
+        {/* Pending Orders Floating Side Panel */}
+        {pendingOrders.length > 0 && (
+          <div 
+            style={{ 
+              position: 'fixed', right: '20px', top: '150px', background: '#fff', border: '2px solid #f97316', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', zIndex: isPendingDragging ? 9999 : 100, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '60vh', overflowY: 'auto', width: '220px',
+              transform: `translate(${pendingPosition.x}px, ${pendingPosition.y}px)`,
+              transition: isPendingDragging ? 'none' : 'transform 0.1s'
+            }}
+          >
+            <div 
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', cursor: isPendingDragging ? 'grabbing' : 'grab' }}
+              onMouseDown={handlePendingMouseDown}
+            >
+              <h3 style={{ fontSize: '1rem', margin: 0, color: '#0f172a', pointerEvents: 'none' }}>⏳ Pending ({pendingOrders.length})</h3>
+            </div>
+            {pendingOrders.map((o, idx) => (
+              <button key={o.id} onClick={() => handleResumeOrder(o.id)} style={{ padding: '0.75rem', border: '1px solid #fdba74', background: '#fff7ed', borderRadius: '8px', color: '#ea580c', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}>
+                <div style={{ fontWeight: 'bold' }}>Order #{idx + 1}</div>
+                <div style={{ fontSize: '0.75rem', color: '#9a3412', marginTop: '4px' }}>{o.cart.length} items • {o.time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Receipt Print Modal */}

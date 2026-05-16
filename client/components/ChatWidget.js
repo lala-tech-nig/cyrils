@@ -13,6 +13,9 @@ export default function ChatWidget() {
   const [targetDepartment, setTargetDepartment] = useState('All');
   const [unreadCount, setUnreadCount] = useState(0);
   const [isRinging, setIsRinging] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
   
   const messagesEndRef = useRef(null);
   const audioRef = useRef(null);
@@ -104,6 +107,34 @@ export default function ChatWidget() {
     scrollToBottom();
   }, [messages, isOpen]);
 
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      setPosition({
+        x: e.clientX - dragOffset.current.x,
+        y: e.clientY - dragOffset.current.y
+      });
+    };
+    const handleMouseUp = () => setIsDragging(false);
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    dragOffset.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    };
+  };
+
   const fetchMessages = async () => {
     try {
       const res = await api.get(`/messages/${user.role}`);
@@ -179,15 +210,18 @@ export default function ChatWidget() {
   if (!user) return null;
 
   return (
-    <div className={styles.chatContainer}>
+    <div 
+      className={styles.chatContainer}
+      style={{ transform: `translate(${position.x}px, ${position.y}px)`, zIndex: isDragging ? 9999 : 1000 }}
+    >
       {isOpen && (
         <div className={styles.chatWindow}>
-          <div className={styles.chatHeader}>
+          <div className={styles.chatHeader} onMouseDown={handleMouseDown} style={{ cursor: isDragging ? 'grabbing' : 'grab' }}>
             <h3>Departmental Chat</h3>
-            <button className={styles.closeBtn} onClick={handleToggle}>✕</button>
+            <button className={styles.closeBtn} onClick={handleToggle} onMouseDown={e => e.stopPropagation()}>✕</button>
           </div>
           
-          <div className={styles.chatBody}>
+          <div className={styles.chatBody} onMouseDown={e => e.stopPropagation()}>
             {messages.length === 0 ? (
               <div className={styles.emptyState}>No messages yet. Say hello!</div>
             ) : (
@@ -212,7 +246,7 @@ export default function ChatWidget() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form className={styles.chatFooter} onSubmit={handleSend}>
+          <form className={styles.chatFooter} onSubmit={handleSend} onMouseDown={e => e.stopPropagation()}>
             <div className={styles.formGroup}>
               <select 
                 className={styles.select} 
@@ -245,6 +279,8 @@ export default function ChatWidget() {
       <button 
         className={`${styles.chatButton} ${isRinging ? styles.ringing : ''}`} 
         onClick={handleToggle}
+        onMouseDown={handleMouseDown}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       >
         💬
         {unreadCount > 0 && <span className={styles.badge}>{unreadCount}</span>}

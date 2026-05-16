@@ -48,8 +48,16 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) =>
       monthSales: monthOrders.filter(o => o.paymentMethod !== 'PR' || o.prApproved).reduce((sum, o) => sum + (o.totalAmount || 0), 0),
       ordersCount: todayOrders.length,
       monthOrdersCount: monthOrders.length,
-      cashReceived: todayOrders.filter(o => o.paymentMethod === 'Cash').reduce((sum, o) => sum + (o.totalAmount || 0), 0),
-      transferReceived: todayOrders.filter(o => o.paymentMethod === 'Transfer' || o.paymentMethod === 'Card').reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+      cashReceived: todayOrders.reduce((sum, o) => {
+        if (o.paymentMethod === 'Cash') return sum + (o.totalAmount || 0);
+        if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.cash || 0);
+        return sum;
+      }, 0),
+      transferReceived: todayOrders.reduce((sum, o) => {
+        if (o.paymentMethod === 'Transfer' || o.paymentMethod === 'Card') return sum + (o.totalAmount || 0);
+        if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.transfer || 0) + (o.mixedPayments.card || 0);
+        return sum;
+      }, 0),
       prTotal: todayOrders.filter(o => o.paymentMethod === 'PR').reduce((sum, o) => sum + (o.totalAmount || 0), 0),
       staffCount,
       users,

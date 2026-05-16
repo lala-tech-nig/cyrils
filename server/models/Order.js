@@ -35,8 +35,13 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['Cash', 'Card', 'Transfer', 'Online', 'PR'],
+    enum: ['Cash', 'Card', 'Transfer', 'Online', 'PR', 'Mixed'],
     default: 'Cash'
+  },
+  mixedPayments: {
+    cash: { type: Number, default: 0 },
+    card: { type: Number, default: 0 },
+    transfer: { type: Number, default: 0 }
   },
   // If PR is used, need a comment and manager approval status
   prComment: { type: String },
