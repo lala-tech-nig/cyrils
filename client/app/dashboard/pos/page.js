@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import api from '../../../lib/api';
 import styles from './page.module.css';
@@ -25,6 +25,9 @@ export default function POSPage() {
   const [pendingTransfers, setPendingTransfers] = useState([]);
   const [pendingOrders, setPendingOrders] = useState([]);
   const [mixedPayments, setMixedPayments] = useState({ cash: '', card: '', transfer: '' });
+  
+  const [currentPack, setCurrentPack] = useState(1);
+  const [totalPacks, setTotalPacks] = useState(1);
   
   // Pending Orders Widget Dragging State
   const [pendingPosition, setPendingPosition] = useState({ x: 0, y: 0 });
@@ -101,18 +104,18 @@ export default function POSPage() {
 
   const addToPosCart = (product) => {
     setPosCart(prev => {
-      const existing = prev.find(item => item._id === product._id);
+      const existing = prev.find(item => item._id === product._id && item.packNumber === currentPack);
       if (existing) {
-        return prev.map(item => item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(item => (item._id === product._id && item.packNumber === currentPack) ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...product, quantity: 1, packNumber: currentPack }];
     });
   };
 
-  const updateQuantity = (id, delta) => {
+  const updateQuantity = (id, packNumber, delta) => {
     setPosCart(prev => {
       return prev.map(item => {
-        if (item._id === id) {
+        if (item._id === id && item.packNumber === packNumber) {
           const newQ = item.quantity + delta;
           return newQ > 0 ? { ...item, quantity: newQ } : null;
         }
@@ -121,8 +124,8 @@ export default function POSPage() {
     });
   };
 
-  const removeFromCart = (id) => {
-    setPosCart(prev => prev.filter(item => item._id !== id));
+  const removeFromCart = (id, packNumber) => {
+    setPosCart(prev => prev.filter(item => !(item._id === id && item.packNumber === packNumber)));
   };
 
   const totalAmount = posCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -130,8 +133,10 @@ export default function POSPage() {
   const handlePendOrder = () => {
     if (posCart.length === 0) return;
     const pendingId = Date.now().toString();
-    setPendingOrders(prev => [...prev, { id: pendingId, cart: [...posCart], time: new Date() }]);
+    setPendingOrders(prev => [...prev, { id: pendingId, cart: [...posCart], time: new Date(), currentPack, totalPacks }]);
     setPosCart([]);
+    setCurrentPack(1);
+    setTotalPacks(1);
     toast.info('Order pended successfully');
   };
 
@@ -143,6 +148,8 @@ export default function POSPage() {
       return;
     }
     setPosCart(pended.cart);
+    setCurrentPack(pended.currentPack || 1);
+    setTotalPacks(pended.totalPacks || 1);
     setPendingOrders(prev => prev.filter(o => o.id !== id));
   };
 
@@ -183,7 +190,7 @@ export default function POSPage() {
 
     const orderData = {
       orderType: 'WalkIn',
-      items: posCart.map(item => ({ product: item._id, quantity: item.quantity, priceAtTime: item.price })),
+      items: posCart.map(item => ({ product: item._id, quantity: item.quantity, priceAtTime: item.price, packNumber: item.packNumber })),
       totalAmount,
       status: 'Completed',
       paymentMethod,
@@ -215,6 +222,8 @@ export default function POSPage() {
       setPosCart([]);
       setPrComment('');
       setMixedPayments({ cash: '', card: '', transfer: '' });
+      setCurrentPack(1);
+      setTotalPacks(1);
       setShowReceipt(false);
       
       fetchData();
@@ -344,30 +353,80 @@ export default function POSPage() {
 
       {/* Cart Section */}
       <div className={styles.cartSection}>
-        <h2 className={styles.cartTitle}>Current Order</h2>
+        <h2 className={styles.cartTitle} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Current Order
+        </h2>
+        
+        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
+          {Array.from({ length: totalPacks }).map((_, i) => (
+            <button 
+              key={`pack-${i+1}`}
+              onClick={() => setCurrentPack(i+1)}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                border: currentPack === i+1 ? '2px solid #f97316' : '1px solid #ddd',
+                background: currentPack === i+1 ? '#fff7ed' : '#fff',
+                color: currentPack === i+1 ? '#ea580c' : '#666',
+                fontWeight: currentPack === i+1 ? 'bold' : 'normal',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Pack {i+1}
+            </button>
+          ))}
+          <button 
+            onClick={() => {
+              setTotalPacks(prev => prev + 1);
+              setCurrentPack(totalPacks + 1);
+            }}
+            style={{
+              padding: '0.5rem 1rem', borderRadius: '6px', border: '1px dashed #94a3b8', background: '#f8fafc', color: '#64748b', cursor: 'pointer', whiteSpace: 'nowrap'
+            }}
+          >
+            + Add Pack
+          </button>
+        </div>
         
         <div className={styles.cartItems}>
           {posCart.length === 0 && <p style={{color: '#999', textAlign:'center'}}>Cart is empty</p>}
-          {posCart.map(item => (
-            <div key={item._id} className={styles.cartItem}>
-              <div>
-                <div style={{fontWeight: 'bold'}}>{item.name}</div>
-                <div style={{fontSize: '0.9rem', color: '#666'}}>₦{item.price}</div>
+          {Array.from({ length: totalPacks }).map((_, packIdx) => {
+            const packNum = packIdx + 1;
+            const packItems = posCart.filter(item => item.packNumber === packNum);
+            
+            if (packItems.length === 0 && posCart.length > 0) return null;
+            
+            return (
+              <div key={`cart-pack-${packNum}`} style={{ marginBottom: '1rem' }}>
+                {totalPacks > 1 && packItems.length > 0 && (
+                  <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#94a3b8', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '0.5rem' }}>
+                    --- Pack {packNum} ---
+                  </div>
+                )}
+                {packItems.map(item => (
+                  <div key={`${item._id}-${item.packNumber}`} className={styles.cartItem} style={{ marginBottom: '0.5rem' }}>
+                    <div>
+                      <div style={{fontWeight: 'bold'}}>{item.name}</div>
+                      <div style={{fontSize: '0.9rem', color: '#666'}}>₦{item.price}</div>
+                    </div>
+                    <div className={styles.qtyControl}>
+                      <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, item.packNumber, -1)}>-</button>
+                      <span style={{ fontWeight: 'bold' }}>{item.quantity}</span>
+                      <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, item.packNumber, 1)}>+</button>
+                      <button 
+                        className={styles.removeBtn} 
+                        onClick={() => removeFromCart(item._id, item.packNumber)}
+                        style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className={styles.qtyControl}>
-                <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, -1)}>-</button>
-                <span style={{ fontWeight: 'bold' }}>{item.quantity}</span>
-                <button className={styles.qtyBtn} onClick={() => updateQuantity(item._id, 1)}>+</button>
-                <button 
-                  className={styles.removeBtn} 
-                  onClick={() => removeFromCart(item._id)}
-                  style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className={styles.cartSummary}>
@@ -485,13 +544,39 @@ export default function POSPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {lastOrder.items.map(item => (
-                    <tr key={item._id}>
-                      <td>{item.name}</td>
-                      <td className={styles.textRight}>{item.quantity}</td>
-                      <td className={styles.textRight}>{item.price * item.quantity}</td>
-                    </tr>
-                  ))}
+                  {(() => {
+                    const packs = [...new Set(lastOrder.items.map(item => item.packNumber || 1))].sort((a,b) => a - b);
+                    if (packs.length <= 1) {
+                      return lastOrder.items.map(item => (
+                        <tr key={`${item._id}-${item.packNumber}`}>
+                          <td>{item.name}</td>
+                          <td className={styles.textRight}>{item.quantity}</td>
+                          <td className={styles.textRight}>{item.price * item.quantity}</td>
+                        </tr>
+                      ));
+                    }
+                    
+                    return packs.map(packNum => {
+                      const packItems = lastOrder.items.filter(i => (i.packNumber || 1) === packNum);
+                      if (packItems.length === 0) return null;
+                      return (
+                        <Fragment key={`receipt-pack-${packNum}`}>
+                          <tr>
+                            <td colSpan="3" style={{ textAlign: 'center', fontWeight: 'bold', borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '4px 0' }}>
+                              --- Pack {packNum} ---
+                            </td>
+                          </tr>
+                          {packItems.map(item => (
+                            <tr key={`${item._id}-${item.packNumber}`}>
+                              <td>{item.name}</td>
+                              <td className={styles.textRight}>{item.quantity}</td>
+                              <td className={styles.textRight}>{item.price * item.quantity}</td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
 

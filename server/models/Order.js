@@ -14,6 +14,10 @@ const orderItemSchema = new mongoose.Schema({
   priceAtTime: {
     type: Number,
     required: true
+  },
+  packNumber: {
+    type: Number,
+    default: 1
   }
 });
 
