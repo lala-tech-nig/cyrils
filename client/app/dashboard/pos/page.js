@@ -1,11 +1,55 @@
 "use client";
 
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment, useCallback } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import api from '../../../lib/api';
 import styles from './page.module.css';
 import { useToast } from '../../../context/ToastContext';
 import { flushSync } from 'react-dom';
+
+// ─── Inline Confirm Modal ────────────────────────────────────────────
+const ConfirmModal = ({ modal, onConfirm, onCancel }) => {
+  if (!modal.open) return null;
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+    }}>
+      <div style={{
+        background: 'white', borderRadius: '20px', padding: '2rem 2rem 1.5rem',
+        maxWidth: '380px', width: '100%',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.2)', animation: 'popIn 0.25s ease'
+      }}>
+        <div style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '0.75rem' }}>
+          {modal.icon || '⚠️'}
+        </div>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a', textAlign: 'center', marginBottom: '0.5rem' }}>
+          {modal.title || 'Are you sure?'}
+        </h2>
+        {modal.message && (
+          <p style={{ fontSize: '0.9rem', color: '#64748b', textAlign: 'center', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+            {modal.message}
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            onClick={onCancel}
+            style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', background: 'white', color: '#475569', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', border: 'none', background: modal.danger ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#f97316,#ea580c)', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', boxShadow: modal.danger ? '0 4px 14px rgba(239,68,68,0.35)' : '0 4px 14px rgba(249,115,22,0.35)' }}
+          >
+            {modal.confirmText || 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function POSPage() {
   const { user, socket } = useAppContext();
@@ -38,6 +82,24 @@ export default function POSPage() {
   const [waitingSelfOrders, setWaitingSelfOrders] = useState([]);
   const [activeSelfOrderId, setActiveSelfOrderId] = useState(null);
   const [showAllSelfOrders, setShowAllSelfOrders] = useState(false);
+
+  // Confirm Modal state
+  const [confirmModal, setConfirmModal] = useState({ open: false });
+  const confirmResolveRef = useRef(null);
+
+  const openConfirm = useCallback((options) => new Promise(resolve => {
+    confirmResolveRef.current = resolve;
+    setConfirmModal({ open: true, ...options });
+  }), []);
+
+  const handleConfirmOk = () => {
+    setConfirmModal({ open: false });
+    confirmResolveRef.current?.(true);
+  };
+  const handleConfirmCancel = () => {
+    setConfirmModal({ open: false });
+    confirmResolveRef.current?.(false);
+  };
   
   // Pending Orders Widget Dragging State
   const [pendingPosition, setPendingPosition] = useState({ x: 0, y: 0 });
@@ -57,7 +119,7 @@ export default function POSPage() {
       setWaitingSelfOrders(prev => {
         // Prevent duplicate appending
         if (prev.some(o => o._id === order._id)) return prev;
-        return [order, ...prev];
+        return [...prev, order];
       });
       toast.info(`New self-order from ${order.customerName || 'Customer'}`);
     };
@@ -125,7 +187,7 @@ export default function POSPage() {
       setPendingTransfers(transRes.data);
       setCustomers(custRes.data);
       if (ordersRes.data) {
-        setWaitingSelfOrders(ordersRes.data.filter(o => o.status === 'Pending'));
+        setWaitingSelfOrders(ordersRes.data.filter(o => o.status === 'Pending').sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)));
       }
     } catch (err) {
       console.error('Failed to fetch POS data', err);
@@ -207,8 +269,11 @@ export default function POSPage() {
     setPendingOrders(prev => prev.filter(o => o.id !== id));
   };
 
-  const handleClearAll = (force = false) => {
-    if (!force && !window.confirm("Clear all items and reset the current order?")) return;
+  const handleClearAll = async (force = false) => {
+    if (!force) {
+      const ok = await openConfirm({ title: 'Clear Order?', message: 'This will remove all items and reset the current order.', icon: '🗑️', confirmText: 'Clear All', danger: true });
+      if (!ok) return;
+    }
     setPosCart([]);
     setCurrentPack(1);
     setTotalPacks(1);
@@ -220,9 +285,10 @@ export default function POSPage() {
     setActiveSelfOrderId(null);
   };
 
-  const loadSelfOrder = (order) => {
+  const loadSelfOrder = async (order) => {
     if (posCart.length > 0) {
-      if (!window.confirm("Current cart will be cleared to load this order. Continue?")) return;
+      const ok = await openConfirm({ title: 'Replace Current Order?', message: 'Your current cart will be cleared to load this customer\'s order.', icon: '🔄', confirmText: 'Load Order' });
+      if (!ok) return;
     }
     const newCart = order.items.map(item => {
       const prod = products.find(p => p._id === (item.product._id || item.product));
@@ -245,7 +311,8 @@ export default function POSPage() {
   };
 
   const removeSelfOrder = async (id) => {
-    if (!window.confirm("Are you sure you want to dismiss this self-order?")) return;
+    const ok = await openConfirm({ title: 'Dismiss Self-Order?', message: 'Customer could not be located on the premises. This order will be declined.', icon: '🚫', confirmText: 'Dismiss', danger: true });
+    if (!ok) return;
     try {
       await api.put(`/orders/${id}/status`, { status: 'Declined' });
       setWaitingSelfOrders(prev => prev.filter(o => o._id !== id));
@@ -806,6 +873,13 @@ export default function POSPage() {
           </div>
         </div>
       )}
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        modal={confirmModal}
+        onConfirm={handleConfirmOk}
+        onCancel={handleConfirmCancel}
+      />
     </div>
   );
 }
