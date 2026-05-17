@@ -8,7 +8,7 @@ import { useToast } from '../../../context/ToastContext';
 import { flushSync } from 'react-dom';
 
 export default function POSPage() {
-  const { user } = useAppContext();
+  const { user, socket } = useAppContext();
   const toast = useToast();
   
   const [products, setProducts] = useState([]);
@@ -23,11 +23,20 @@ export default function POSPage() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [settings, setSettings] = useState(null);
   const [pendingTransfers, setPendingTransfers] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [pendingOrders, setPendingOrders] = useState([]);
   const [mixedPayments, setMixedPayments] = useState({ cash: '', card: '', transfer: '' });
   
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [discountType, setDiscountType] = useState('None');
+  const [discountOtp, setDiscountOtp] = useState('');
+  
   const [currentPack, setCurrentPack] = useState(1);
   const [totalPacks, setTotalPacks] = useState(1);
+  
+  const [waitingSelfOrders, setWaitingSelfOrders] = useState([]);
+  const [activeSelfOrderId, setActiveSelfOrderId] = useState(null);
   
   // Pending Orders Widget Dragging State
   const [pendingPosition, setPendingPosition] = useState({ x: 0, y: 0 });
@@ -39,6 +48,24 @@ export default function POSPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    socket.on('new_self_order', (order) => {
+      setWaitingSelfOrders(prev => [order, ...prev]);
+      toast.info(`New self-order from ${order.customerName || 'Customer'}`);
+    });
+    
+    socket.on('order_completed', (order) => {
+      setWaitingSelfOrders(prev => prev.filter(o => o._id !== order._id));
+    });
+
+    return () => {
+      socket.off('new_self_order');
+      socket.off('order_completed');
+    };
+  }, [socket, toast]);
 
   // Broadcast cart changes to VFD screen
   useEffect(() => {
@@ -77,15 +104,21 @@ export default function POSPage() {
 
   const fetchData = async () => {
     try {
-      const [prodRes, settRes, transRes] = await Promise.all([
+      const [prodRes, settRes, transRes, custRes, ordersRes] = await Promise.all([
         api.get('/products'),
         api.get('/settings'),
-        api.get('/transfers/pending')
+        api.get('/transfers/pending'),
+        api.get('/customers'),
+        api.get('/orders?type=WalkIn')
       ]);
       const sortedProducts = prodRes.data.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
       setProducts(sortedProducts);
       setSettings(settRes.data);
       setPendingTransfers(transRes.data);
+      setCustomers(custRes.data);
+      if (ordersRes.data) {
+        setWaitingSelfOrders(ordersRes.data.filter(o => o.status === 'Pending'));
+      }
     } catch (err) {
       console.error('Failed to fetch POS data', err);
     }
@@ -104,11 +137,17 @@ export default function POSPage() {
 
   const addToPosCart = (product) => {
     setPosCart(prev => {
+      let effectivePrice = product.price;
+      if (product.discountPercent > 0 && product.discountExpiry && new Date(product.discountExpiry) > new Date()) {
+        effectivePrice = product.price - (product.price * (product.discountPercent / 100));
+      }
+      const taxAmount = effectivePrice * ((product.taxPercent || 0) / 100);
+
       const existing = prev.find(item => item._id === product._id && item.packNumber === currentPack);
       if (existing) {
         return prev.map(item => (item._id === product._id && item.packNumber === currentPack) ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { ...product, quantity: 1, packNumber: currentPack }];
+      return [...prev, { ...product, price: effectivePrice, originalPrice: product.price, unitTax: taxAmount, quantity: 1, packNumber: currentPack }];
     });
   };
 
@@ -128,7 +167,14 @@ export default function POSPage() {
     setPosCart(prev => prev.filter(item => !(item._id === id && item.packNumber === packNumber)));
   };
 
-  const totalAmount = posCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const subTotalAmount = posCart.reduce((sum, item) => sum + (item.price * item.quantity) + ((item.unitTax || 0) * item.quantity), 0);
+  let totalAmount = subTotalAmount;
+  if (discountType === 'Percentage' && Number(discountAmount) > 0) {
+    totalAmount -= (subTotalAmount * (Number(discountAmount) / 100));
+  } else if (discountType === 'Flat' && Number(discountAmount) > 0) {
+    totalAmount -= Number(discountAmount);
+  }
+  totalAmount = Math.max(0, totalAmount);
 
   const handlePendOrder = () => {
     if (posCart.length === 0) return;
@@ -153,6 +199,43 @@ export default function POSPage() {
     setPendingOrders(prev => prev.filter(o => o.id !== id));
   };
 
+  const handleClearAll = (force = false) => {
+    if (!force && !window.confirm("Clear all items and reset the current order?")) return;
+    setPosCart([]);
+    setCurrentPack(1);
+    setTotalPacks(1);
+    setPrComment('');
+    setMixedPayments({ cash: '', card: '', transfer: '' });
+    setDiscountAmount('');
+    setDiscountType('None');
+    setDiscountOtp('');
+    setActiveSelfOrderId(null);
+  };
+
+  const loadSelfOrder = (order) => {
+    if (posCart.length > 0) {
+      if (!window.confirm("Current cart will be cleared to load this order. Continue?")) return;
+    }
+    const newCart = order.items.map(item => {
+      const prod = products.find(p => p._id === (item.product._id || item.product));
+      return {
+        _id: prod ? prod._id : (item.product._id || item.product),
+        name: prod ? prod.name : 'Unknown Product',
+        price: item.priceAtTime,
+        quantity: item.quantity,
+        packNumber: item.packNumber || 1
+      };
+    });
+    
+    setPosCart(newCart);
+    setActiveSelfOrderId(order._id);
+    
+    const maxPack = Math.max(1, ...newCart.map(i => i.packNumber || 1));
+    setTotalPacks(maxPack);
+    setCurrentPack(1);
+    toast.success(`Loaded order for ${order.customerName || 'Customer'}`);
+  };
+
   const handleCheckout = () => {
     if (posCart.length === 0) return;
     if (paymentMethod === 'PR' && !prComment.trim()) {
@@ -169,12 +252,28 @@ export default function POSPage() {
       }
     }
 
-    // Prepare preview receipt
+    if (paymentMethod === 'Customer Account' && !selectedCustomerId) {
+      toast.warning('Please select a customer account to charge.');
+      return;
+    }
+    
+    if (paymentMethod === 'Customer Account') {
+      const customer = customers.find(c => c._id === selectedCustomerId);
+      if (!customer || customer.walletBalance < totalAmount) {
+        toast.warning('Insufficient wallet balance for this customer.');
+        return;
+      }
+    }
+
     const orderPreview = {
       _id: 'Pending Save...',
       items: posCart,
       totalAmount,
+      subTotalAmount,
+      discountType,
+      discountAmount: Number(discountAmount) || 0,
       paymentMethod,
+      customerId: paymentMethod === 'Customer Account' ? selectedCustomerId : undefined,
       prComment: paymentMethod === 'PR' ? prComment : '',
       salesPersonName: user?.username || 'Unknown Staff',
       date: new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })
@@ -192,8 +291,12 @@ export default function POSPage() {
       orderType: 'WalkIn',
       items: posCart.map(item => ({ product: item._id, quantity: item.quantity, priceAtTime: item.price, packNumber: item.packNumber })),
       totalAmount,
+      discountType,
+      discountAmount: Number(discountAmount) || 0,
+      discountOtp,
       status: 'Completed',
       paymentMethod,
+      customerId: paymentMethod === 'Customer Account' ? selectedCustomerId : undefined,
       prComment: paymentMethod === 'PR' ? prComment : '',
       mixedPayments: paymentMethod === 'Mixed' ? {
         cash: Number(mixedPayments.cash) || 0,
@@ -204,7 +307,12 @@ export default function POSPage() {
     };
 
     try {
-      const res = await api.post('/orders', orderData);
+      let res;
+      if (activeSelfOrderId) {
+        res = await api.put(`/orders/${activeSelfOrderId}/complete`, orderData);
+      } else {
+        res = await api.post('/orders', orderData);
+      }
       const savedOrder = res.data;
       
       const orderToPrint = {
@@ -219,11 +327,7 @@ export default function POSPage() {
       
       window.print();
       
-      setPosCart([]);
-      setPrComment('');
-      setMixedPayments({ cash: '', card: '', transfer: '' });
-      setCurrentPack(1);
-      setTotalPacks(1);
+      handleClearAll(true);
       setShowReceipt(false);
       
       fetchData();
@@ -266,6 +370,29 @@ export default function POSPage() {
                     style={{ background: '#57a74a', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
                   >
                     Accept
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Self Orders Section */}
+        {waitingSelfOrders.length > 0 && (
+          <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '0.9rem', color: '#334155', marginBottom: '0.5rem' }}>👥 Customer Self-Orders ({waitingSelfOrders.length})</h3>
+            <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+              {waitingSelfOrders.map(o => (
+                <div key={o._id} style={{ background: 'white', padding: '0.75rem', borderRadius: '6px', minWidth: '220px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#f97316' }}>{o.customerName || 'Walk-In'}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#666' }}>{o.items.length} items | {new Date(o.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                  </div>
+                  <button 
+                    onClick={() => loadSelfOrder(o)}
+                    style={{ background: '#f97316', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                  >
+                    Load
                   </button>
                 </div>
               ))}
@@ -357,7 +484,7 @@ export default function POSPage() {
           Current Order
         </h2>
         
-        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
           {Array.from({ length: totalPacks }).map((_, i) => (
             <button 
               key={`pack-${i+1}`}
@@ -389,6 +516,20 @@ export default function POSPage() {
           </button>
         </div>
         
+        {activeSelfOrderId && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff7ed', border: '1px solid #fdba74', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' }}>
+            <div style={{ fontWeight: 'bold', color: '#c2410c' }}>
+              Handling Self-Order
+            </div>
+            <button 
+              onClick={() => { setActiveSelfOrderId(null); handleClearAll(true); }}
+              style={{ background: '#fff', border: '1px solid #fdba74', color: '#ea580c', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+            >
+              Return to Waiting
+            </button>
+          </div>
+        )}
+
         <div className={styles.cartItems}>
           {posCart.length === 0 && <p style={{color: '#999', textAlign:'center'}}>Cart is empty</p>}
           {Array.from({ length: totalPacks }).map((_, packIdx) => {
@@ -435,8 +576,25 @@ export default function POSPage() {
             <span>₦{totalAmount}</span>
           </div>
 
+          <div style={{ marginTop: '1rem', marginBottom: '1rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#64748b', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Apply Discount</span>
+              <select value={discountType} onChange={(e) => { setDiscountType(e.target.value); setDiscountAmount(''); }} style={{ border: 'none', background: 'transparent', fontWeight: 'bold', color: '#f97316', cursor: 'pointer' }}>
+                <option value="None">None</option>
+                <option value="Percentage">Percentage (%)</option>
+                <option value="Flat">Flat Amount (₦)</option>
+              </select>
+            </div>
+            {discountType !== 'None' && (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input type="number" placeholder={discountType === 'Percentage' ? '% Value' : '₦ Amount'} value={discountAmount} onChange={e => setDiscountAmount(e.target.value)} className={styles.prInput} style={{ flex: 1, marginBottom: 0 }} />
+                <input type="text" placeholder="Manager OTP" value={discountOtp} onChange={e => setDiscountOtp(e.target.value)} className={styles.prInput} style={{ flex: 1, marginBottom: 0, border: '1px solid #f97316' }} />
+              </div>
+            )}
+          </div>
+
           <div className={styles.paymentMethods}>
-            {['Cash', 'Card', 'Transfer', 'Mixed', 'PR'].map(method => (
+            {['Cash', 'Card', 'Transfer', 'Customer Account', 'Mixed', 'PR'].map(method => (
               <button 
                 key={method}
                 className={`${styles.payBtn} ${paymentMethod === method ? styles.selected : ''}`}
@@ -446,6 +604,18 @@ export default function POSPage() {
               </button>
             ))}
           </div>
+
+          {paymentMethod === 'Customer Account' && (
+            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#64748b', marginBottom: '0.5rem' }}>Select Registered Customer:</div>
+              <select className={styles.prInput} style={{ marginBottom: 0 }} value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)}>
+                <option value="">-- Choose Customer --</option>
+                {customers.map(c => (
+                  <option key={c._id} value={c._id}>{c.name} ({c.phone}) - Bal: ₦{c.walletBalance?.toLocaleString()}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {paymentMethod === 'Mixed' && (
             <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px' }}>
@@ -473,20 +643,28 @@ export default function POSPage() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
             <button 
               className={`btn-secondary`} 
               onClick={handlePendOrder}
-              disabled={posCart.length === 0 || isCheckingOut}
-              style={{ flex: 1, padding: '1rem', opacity: posCart.length === 0 ? 0.5 : 1, fontWeight: 'bold', fontSize: '0.9rem', borderRadius: '8px' }}
+              disabled={posCart.length === 0 || isCheckingOut || activeSelfOrderId}
+              style={{ flex: 1, padding: '1rem', opacity: (posCart.length === 0 || activeSelfOrderId) ? 0.5 : 1, fontWeight: 'bold', fontSize: '0.9rem', borderRadius: '8px', minWidth: '120px' }}
             >
-              ⏳ Pend Order
+              ⏳ Pend
+            </button>
+            <button 
+              className={`btn-secondary`} 
+              onClick={() => handleClearAll()}
+              disabled={posCart.length === 0 || isCheckingOut}
+              style={{ flex: 1, padding: '1rem', opacity: posCart.length === 0 ? 0.5 : 1, fontWeight: 'bold', fontSize: '0.9rem', borderRadius: '8px', background: '#fee2e2', color: '#b91c1c', border: 'none', minWidth: '120px' }}
+            >
+              🗑️ Clear All
             </button>
             <button 
               className={`btn-primary ${styles.checkoutBtn}`} 
               onClick={handleCheckout}
               disabled={posCart.length === 0}
-              style={{ flex: 2, margin: 0, padding: '1rem', borderRadius: '8px' }}
+              style={{ flex: 2, margin: 0, padding: '1rem', borderRadius: '8px', minWidth: '150px' }}
             >
               Preview Receipt
             </button>
@@ -581,6 +759,14 @@ export default function POSPage() {
               </table>
 
               <div className={styles.receiptDivider}></div>
+              {lastOrder.discountAmount > 0 && (
+                <div style={{ textAlign: 'right', marginBottom: '0.5rem' }}>
+                  <p style={{ margin: '0.2rem 0' }}>Subtotal: ₦{lastOrder.subTotalAmount}</p>
+                  <p style={{ margin: '0.2rem 0', color: '#f97316' }}>
+                    Discount: -₦{lastOrder.discountType === 'Percentage' ? (lastOrder.subTotalAmount * (lastOrder.discountAmount / 100)) : lastOrder.discountAmount}
+                  </p>
+                </div>
+              )}
               <h3 style={{textAlign: 'right', margin: '0.5rem 0'}}>TOTAL: ₦{lastOrder.totalAmount}</h3>
               <div className={styles.receiptDivider}></div>
               <p>Thank you for dining with us!</p>

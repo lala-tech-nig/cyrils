@@ -32,6 +32,19 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  taxAmount: {
+    type: Number,
+    default: 0
+  },
+  discountAmount: {
+    type: Number,
+    default: 0
+  },
+  discountType: {
+    type: String,
+    enum: ['None', 'Percentage', 'Flat'],
+    default: 'None'
+  },
   status: {
     type: String,
     enum: ['Pending', 'Accepted', 'Declined', 'Completed'],

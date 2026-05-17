@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  shiftLockedUntil: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

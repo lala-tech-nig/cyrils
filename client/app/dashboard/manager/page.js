@@ -10,6 +10,7 @@ export default function ManagerDashboard() {
   const { user } = useAppContext();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('Overview');
+  const [discountOtp, setDiscountOtp] = useState('----');
 
   // Overview Data
   const [stats, setStats] = useState({
@@ -37,12 +38,26 @@ export default function ManagerDashboard() {
 
   // Filters
   const [attendanceFilter, setAttendanceFilter] = useState({ staff: '', dept: '', timeRange: 'all' });
-  const [salesFilter, setSalesFilter] = useState({ staff: '', timeRange: 'today', paymentMethod: '' });
+  const [reportFilters, setReportFilters] = useState({ startDate: '', endDate: '', category: 'All', paymentMethod: 'All', cashier: '' });
+  const [sortConfig, setSortConfig] = useState({ key: 'createdAt', dir: 'desc' });
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [storeFilter, setStoreFilter] = useState({ timeRange: 'all' });
 
   useEffect(() => {
     fetchDashboardData();
+    fetchOtp();
+    const interval = setInterval(fetchOtp, 60000); // Check every minute
+    return () => clearInterval(interval);
   }, []);
+
+  const fetchOtp = async () => {
+    try {
+      const res = await api.get('/orders/discount-otp');
+      setDiscountOtp(res.data.otp);
+    } catch (err) {
+      console.error('Failed to fetch OTP', err);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -92,33 +107,97 @@ export default function ManagerDashboard() {
     } else if (activeTab === 'Kitchen & Store') {
       fetchFilteredStore();
     }
-  }, [activeTab, salesFilter, storeFilter]);
+  }, [activeTab]);
 
   const fetchFilteredSales = async () => {
     try {
-      let query = `?`;
-      if (salesFilter.staff) query += `staff=${salesFilter.staff}&`;
-      if (salesFilter.paymentMethod) query += `paymentMethod=${salesFilter.paymentMethod}&`;
-      
-      const today = new Date();
-      if (salesFilter.timeRange === 'today') {
-        today.setHours(0,0,0,0);
-        query += `startDate=${today.toISOString()}&`;
-      } else if (salesFilter.timeRange === 'week') {
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay());
-        startOfWeek.setHours(0,0,0,0);
-        query += `startDate=${startOfWeek.toISOString()}&`;
-      } else if (salesFilter.timeRange === 'month') {
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        query += `startDate=${startOfMonth.toISOString()}&`;
+      let query = '';
+      if (reportFilters.startDate && reportFilters.endDate) {
+        query = `?startDate=${reportFilters.startDate}&endDate=${reportFilters.endDate}`;
       }
-
-      const res = await api.get(`/orders${query}`);
+      const res = await api.get(`/finance/sales-report${query}`);
       setSalesHistory(res.data);
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const toggleSort = (key) => {
+    setSortConfig(prev => ({ key, dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc' }));
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return '↕';
+    return sortConfig.dir === 'asc' ? '↑' : '↓';
+  };
+
+  const getFilteredSorted = () => {
+    let data = [...salesHistory];
+
+    if (reportFilters.paymentMethod !== 'All') {
+      data = data.filter(o => o.paymentMethod === reportFilters.paymentMethod);
+    }
+
+    if (reportFilters.cashier) {
+      data = data.filter(o => o.salesPersonName?.toLowerCase().includes(reportFilters.cashier.toLowerCase()));
+    }
+
+    data.sort((a, b) => {
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+      if (sortConfig.key === 'createdAt') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      if (aVal < bVal) return sortConfig.dir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return data;
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to permanently delete this transaction? This cannot be undone.')) return;
+    try {
+      await api.delete(`/orders/${orderId}`);
+      toast.success('Transaction deleted');
+      setSalesHistory(prev => prev.filter(o => o._id !== orderId));
+      setSelectedOrder(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error deleting transaction');
+    }
+  };
+
+  const exportSalesReport = () => {
+    const data = getFilteredSorted();
+    if (data.length === 0) return toast.warning('No data to export');
+
+    const headers = ['Date', 'Order ID', 'Cashier', 'Payment Method', 'Items', 'Subtotal', 'Discount', 'Total'];
+
+    const rows = data.map(order => [
+      new Date(order.createdAt).toLocaleString(),
+      order._id,
+      order.salesPersonName || '',
+      order.paymentMethod,
+      `"${order.items.map(i => `${i.quantity}x ${i.product?.name || 'Unknown'}`).join('; ')}"`,
+      order.subTotalAmount || order.totalAmount,
+      order.discountAmount || 0,
+      order.totalAmount
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,'
+      + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `sales_history_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const fetchFilteredStore = async () => {
@@ -189,6 +268,17 @@ export default function ManagerDashboard() {
       setPrOrders(prRes.data);
     } catch (err) {
       toast.error('Failed to process PR');
+    }
+  };
+
+  const handleForceCheckout = async (userId) => {
+    if (!window.confirm('Are you sure you want to close this shift? The account will be logged out and locked for 8 hours.')) return;
+    try {
+      await api.post(`/attendance/force-checkout/${userId}`);
+      toast.success('Shift closed and account locked');
+      fetchDashboardData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to close shift');
     }
   };
 
@@ -338,9 +428,15 @@ export default function ManagerDashboard() {
             <h1 className={styles.pageTitle}>{activeTab}</h1>
             <p className={styles.pageSubtitle}>Welcome back, {user.username}</p>
           </div>
-          <button className={styles.btnSecondary} onClick={fetchDashboardData}>
-            🔄 Refresh Data
-          </button>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ background: '#fff', border: '2px solid #f97316', padding: '0.2rem 1rem', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Active Discount OTP</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#f97316', letterSpacing: '2px' }}>{discountOtp}</div>
+            </div>
+            <button className={styles.btnSecondary} onClick={fetchDashboardData}>
+              🔄 Refresh Data
+            </button>
+          </div>
         </header>
 
         {/* OVERVIEW TAB */}
@@ -380,7 +476,7 @@ export default function ManagerDashboard() {
                 <div className={styles.panelBody} style={{ padding: 0 }}>
                   <table className={styles.table}>
                     <thead>
-                      <tr><th>Staff</th><th>Dept</th><th>Status</th></tr>
+                      <tr><th>Staff</th><th>Dept</th><th>Status</th><th>Action</th></tr>
                     </thead>
                     <tbody>
                       {loggedInUsers.map(log => (
@@ -388,9 +484,16 @@ export default function ManagerDashboard() {
                           <td>{log.user?.username}</td>
                           <td>{log.user?.role}</td>
                           <td><span className={`${styles.badge} ${styles.badgeGreen}`}>ONLINE</span></td>
+                          <td>
+                            {log.user?.role === 'Sales' && (
+                              <button className={styles.btnDanger} style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }} onClick={() => handleForceCheckout(log.user?._id)}>
+                                Close Shift
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
-                      {loggedInUsers.length === 0 && <tr><td colSpan="3" className={styles.emptyState}>No staff currently logged in.</td></tr>}
+                      {loggedInUsers.length === 0 && <tr><td colSpan="4" className={styles.emptyState}>No staff currently logged in.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -414,76 +517,116 @@ export default function ManagerDashboard() {
           </div>
         )}
 
-        {/* SALES HISTORY TAB */}
+           {/* SALES HISTORY TAB */}
         {activeTab === 'Sales History' && (
           <div className={styles.panel} style={{ animation: 'fadeIn 0.3s ease' }}>
-            <div className={styles.filterBar}>
-              <div className={styles.filterBtnGroup}>
-                {['today', 'week', 'month', 'all'].map(range => (
-                  <button 
-                    key={range} 
-                    className={`${styles.filterPill} ${salesFilter.timeRange === range ? styles.active : ''}`}
-                    onClick={() => setSalesFilter({...salesFilter, timeRange: range})}
-                  >
-                    {range.charAt(0).toUpperCase() + range.slice(1)}
-                  </button>
-                ))}
+            <div className={styles.panelHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <h2 className={styles.panelTitle}>Transactions Report</h2>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input type="datetime-local" className={styles.formControl} style={{ width: 'auto', marginBottom: 0, padding: '0.4rem' }} value={reportFilters.startDate} onChange={e => setReportFilters({...reportFilters, startDate: e.target.value})} />
+                <span style={{ color: '#64748b' }}>to</span>
+                <input type="datetime-local" className={styles.formControl} style={{ width: 'auto', marginBottom: 0, padding: '0.4rem' }} value={reportFilters.endDate} onChange={e => setReportFilters({...reportFilters, endDate: e.target.value})} />
+                <input type="text" placeholder="Filter Cashier" className={styles.formControl} style={{ width: 'auto', marginBottom: 0, padding: '0.4rem' }} value={reportFilters.cashier} onChange={e => setReportFilters({...reportFilters, cashier: e.target.value})} />
+                <select className={styles.formControl} style={{ width: 'auto', marginBottom: 0, padding: '0.4rem' }} value={reportFilters.paymentMethod} onChange={e => setReportFilters({...reportFilters, paymentMethod: e.target.value})}>
+                  <option value="All">All Payment Methods</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="Transfer">Transfer</option>
+                  <option value="Mixed">Mixed</option>
+                  <option value="Customer Account">Customer Account</option>
+                  <option value="PR">PR</option>
+                </select>
+                <button className={styles.btnSecondary} onClick={fetchFilteredSales} style={{ padding: '0.5rem 1rem' }}>Filter</button>
+                <button className={styles.btnPrimary} onClick={exportSalesReport} style={{ padding: '0.5rem 1rem', background: '#10b981', borderColor: '#10b981' }}>📥 Export CSV</button>
               </div>
-              <select 
-                className={styles.filterSelect} 
-                value={salesFilter.paymentMethod} 
-                onChange={(e) => setSalesFilter({...salesFilter, paymentMethod: e.target.value})}
-              >
-                <option value="">All Payments</option>
-                <option value="Cash">Cash</option>
-                <option value="Transfer">Transfer</option>
-                <option value="Card">Card</option>
-                <option value="PR">PR</option>
-              </select>
-              <input 
-                type="text" 
-                placeholder="Filter by Staff" 
-                className={styles.filterInput}
-                value={salesFilter.staff}
-                onChange={(e) => setSalesFilter({...salesFilter, staff: e.target.value})}
-              />
             </div>
             
             <div className={styles.tableWrapper}>
-              <table className={styles.table}>
+              <table className={styles.table} style={{ fontSize: '0.85rem' }}>
                 <thead>
                   <tr>
-                    <th>Date & Time</th>
+                    <th onClick={() => toggleSort('createdAt')} style={{ cursor: 'pointer', userSelect: 'none' }}>Date {getSortIcon('createdAt')}</th>
                     <th>Order ID</th>
-                    <th>Staff</th>
-                    <th>Payment</th>
-                    <th>Status</th>
-                    <th>Total</th>
+                    <th onClick={() => toggleSort('paymentMethod')} style={{ cursor: 'pointer', userSelect: 'none' }}>Payment Method {getSortIcon('paymentMethod')}</th>
+                    <th onClick={() => toggleSort('salesPersonName')} style={{ cursor: 'pointer', userSelect: 'none' }}>Cashier {getSortIcon('salesPersonName')}</th>
+                    <th>Items</th>
+                    <th onClick={() => toggleSort('totalAmount')} style={{ cursor: 'pointer', userSelect: 'none' }}>Total Amount {getSortIcon('totalAmount')}</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {salesHistory.map(order => (
-                    <tr key={order._id}>
-                      <td>{new Date(order.createdAt).toLocaleString()}</td>
-                      <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>#{order._id.slice(-6)}</td>
-                      <td>{order.salesPersonName || order.salesPerson?.username || 'N/A'}</td>
+                  {getFilteredSorted().map((order) => (
+                    <tr key={order._id} style={{ cursor: 'pointer' }} onClick={() => setSelectedOrder(order)}>
+                      <td style={{ color: '#64748b' }}>{new Date(order.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</td>
+                      <td style={{ fontWeight: 600 }}>...{order._id.slice(-6)}</td>
+                      <td><span className={`${styles.badge} ${styles.badgeGray}`}>{order.paymentMethod}</span></td>
+                      <td>{order.salesPersonName || 'System'}</td>
+                      <td style={{ color: '#3b82f6', fontWeight: 600 }}>{order.items.length} items</td>
+                      <td style={{ fontWeight: 800, color: '#16a34a' }}>₦{order.totalAmount?.toLocaleString()}</td>
                       <td>
-                        <span className={`${styles.badge} ${order.paymentMethod === 'Cash' ? styles.badgeGreen : order.paymentMethod === 'PR' ? styles.badgePurple : styles.badgeBlue}`}>
-                          {order.paymentMethod}
-                        </span>
+                        <button className={styles.btnDanger} style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order._id); }}>Delete</button>
                       </td>
-                      <td>
-                        <span className={`${styles.badge} ${order.status === 'Completed' ? styles.badgeGreen : order.status === 'Declined' ? styles.badgeRed : styles.badgeOrange}`}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 800 }}>₦{order.totalAmount.toLocaleString()}</td>
                     </tr>
                   ))}
-                  {salesHistory.length === 0 && <tr><td colSpan="6" className={styles.emptyState}>No sales records found.</td></tr>}
+                  {getFilteredSorted().length === 0 && <tr><td colSpan="7" className={styles.emptyState}>No transactions found for the selected criteria.</td></tr>}
                 </tbody>
               </table>
             </div>
+
+            {/* Transaction Detail Modal */}
+            {selectedOrder && (
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ background: '#fff', borderRadius: '12px', padding: '2rem', width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Transaction Details</h3>
+                    <button onClick={() => setSelectedOrder(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                    <div><span style={{ color: '#64748b' }}>Order ID:</span> <strong>{selectedOrder._id}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Date:</span> <strong>{new Date(selectedOrder.createdAt).toLocaleString()}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Payment Method:</span> <strong>{selectedOrder.paymentMethod}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Cashier:</span> <strong>{selectedOrder.salesPersonName || 'N/A'}</strong></div>
+                    {selectedOrder.paymentMethod === 'Customer Account' && selectedOrder.customerId && (
+                       <div><span style={{ color: '#64748b' }}>Customer ID:</span> <strong>{selectedOrder.customerId}</strong></div>
+                    )}
+                    {selectedOrder.paymentMethod === 'PR' && (
+                       <div style={{ gridColumn: '1 / -1' }}><span style={{ color: '#64748b' }}>PR Comment:</span> <strong>{selectedOrder.prComment}</strong></div>
+                    )}
+                  </div>
+
+                  <h4 style={{ fontSize: '1rem', color: '#334155', marginBottom: '1rem' }}>Purchased Items</h4>
+                  <table className={styles.table} style={{ fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Unit Price</th>
+                        <th style={{ textAlign: 'right' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedOrder.items.map((item, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 600 }}>{item.product?.name || 'Unknown Product'}</td>
+                          <td>{item.quantity}</td>
+                          <td>₦{item.priceAtTime?.toLocaleString()}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>₦{(item.priceAtTime * item.quantity).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+                    <div style={{ color: '#64748b', fontSize: '0.9rem' }}>Subtotal: ₦{selectedOrder.subTotalAmount?.toLocaleString() || selectedOrder.totalAmount?.toLocaleString()}</div>
+                    {selectedOrder.discountAmount > 0 && (
+                      <div style={{ color: '#ef4444', fontSize: '0.9rem' }}>Discount: -₦{selectedOrder.discountAmount?.toLocaleString()}</div>
+                    )}
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#16a34a' }}>Grand Total: ₦{selectedOrder.totalAmount?.toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

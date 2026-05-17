@@ -12,7 +12,7 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState([]);
   
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'Sales' });
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Main' });
+  const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Main', taxPercent: 0, discountPercent: 0, discountExpiry: '' });
   const [productImage, setProductImage] = useState(null);
 
   const [settings, setSettings] = useState({ targetLat: 0, targetLng: 0 });
@@ -21,13 +21,25 @@ export default function AdminDashboard() {
   const [newPromo, setNewPromo] = useState({ title: '', description: '', order: 0 });
   const [promoImage, setPromoImage] = useState(null);
 
+  const [activities, setActivities] = useState([]);
+
   useEffect(() => {
     fetchUsers();
     fetchProducts();
     fetchSettings();
     fetchAttendance();
     fetchPromotions();
+    fetchActivities();
   }, []);
+
+  const fetchActivities = async () => {
+    try {
+      const res = await api.get('/activities?limit=500');
+      setActivities(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchPromotions = async () => {
     try {
@@ -135,6 +147,11 @@ export default function AdminDashboard() {
     formData.append('name', newProduct.name);
     formData.append('price', newProduct.price);
     formData.append('category', newProduct.category);
+    formData.append('taxPercent', newProduct.taxPercent);
+    formData.append('discountPercent', newProduct.discountPercent);
+    if (newProduct.discountExpiry) {
+      formData.append('discountExpiry', newProduct.discountExpiry);
+    }
     if (productImage) {
       formData.append('image', productImage);
     }
@@ -143,7 +160,7 @@ export default function AdminDashboard() {
       await api.post('/products', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      setNewProduct({ name: '', price: '', category: 'Main' });
+      setNewProduct({ name: '', price: '', category: 'Main', taxPercent: 0, discountPercent: 0, discountExpiry: '' });
       setProductImage(null);
       fetchProducts();
       alert('Menu item created successfully');
@@ -158,6 +175,18 @@ export default function AdminDashboard() {
       fetchUsers();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const endShift = async (id) => {
+    if (!confirm('End shift for this user and lock account for 8 hours?')) return;
+    try {
+      await api.post(`/users/${id}/end-shift`);
+      fetchUsers();
+      alert('Shift ended successfully.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to end shift.');
     }
   };
 
@@ -180,10 +209,16 @@ export default function AdminDashboard() {
       <nav className={styles.topNav}>
         <div className={styles.navGroup}>
           <button className={`${styles.navBtn} ${activeTab === 'User Management' ? styles.active : ''}`} onClick={() => setActiveTab('User Management')}>
-            <span className={styles.icon}>👥</span> User Management
+            User Management
           </button>
-          <button className={`${styles.navBtn} ${activeTab === 'Geofence Settings' ? styles.active : ''}`} onClick={() => setActiveTab('Geofence Settings')}>
-            <span className={styles.icon}>📍</span> Geofence Settings
+          <button className={`${styles.navBtn} ${activeTab === 'Settings' ? styles.active : ''}`} onClick={() => setActiveTab('Settings')}>
+            Settings
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'Promotions' ? styles.active : ''}`} onClick={() => setActiveTab('Promotions')}>
+            Promotions
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'System Activity Logs' ? styles.active : ''}`} onClick={() => setActiveTab('System Activity Logs')}>
+            System Activity Logs
           </button>
         </div>
         <div className={styles.navGroup}>
@@ -380,8 +415,13 @@ export default function AdminDashboard() {
                         </td>
                         <td>
                           {u.role !== 'SuperAdmin' && (
-                            <button onClick={() => toggleUserStatus(u._id)} className={u.isActive ? styles.btnDanger : styles.btnSuccess}>
+                            <button onClick={() => toggleUserStatus(u._id)} className={u.isActive ? styles.btnDanger : styles.btnSuccess} style={{ marginRight: '0.5rem' }}>
                               {u.isActive ? 'Disable' : 'Enable'}
+                            </button>
+                          )}
+                          {u.role === 'Sales' && (
+                            <button onClick={() => endShift(u._id)} className={styles.btnDanger} style={{ background: '#f59e0b', color: 'white', border: 'none' }}>
+                              End Shift
                             </button>
                           )}
                         </td>
@@ -419,6 +459,18 @@ export default function AdminDashboard() {
                       <option value="Drinks">Drinks</option>
                       <option value="Sides">Sides</option>
                     </select>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Tax (%)</label>
+                    <input type="number" className={styles.formControl} value={newProduct.taxPercent} onChange={e => setNewProduct({...newProduct, taxPercent: e.target.value})} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Discount (%)</label>
+                    <input type="number" className={styles.formControl} value={newProduct.discountPercent} onChange={e => setNewProduct({...newProduct, discountPercent: e.target.value})} />
+                  </div>
+                  <div className={`${styles.formGroup} ${styles.full}`}>
+                    <label className={styles.formLabel}>Discount Expiry</label>
+                    <input type="datetime-local" className={styles.formControl} value={newProduct.discountExpiry} onChange={e => setNewProduct({...newProduct, discountExpiry: e.target.value})} />
                   </div>
                   <div className={`${styles.formGroup} ${styles.full}`}>
                     <label className={styles.formLabel}>Item Image</label>
@@ -471,6 +523,62 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* SYSTEM ACTIVITY LOGS TAB */}
+        {activeTab === 'System Activity Logs' && (
+          <div style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Global System Activity Logs</h2>
+                <button className={styles.btnSecondary} onClick={fetchActivities}>🔄 Refresh Logs</button>
+              </div>
+              <div className={styles.tableWrapper}>
+                <table className={styles.table} style={{ fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>User</th>
+                      <th>Role</th>
+                      <th>Action</th>
+                      <th>Endpoint</th>
+                      <th>Status</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activities.map(log => (
+                      <tr key={log._id}>
+                        <td>{new Date(log.createdAt).toLocaleString()}</td>
+                        <td style={{ fontWeight: 600 }}>{log.username}</td>
+                        <td><span className={`${styles.badge} ${styles.badgeGray}`}>{log.role}</span></td>
+                        <td>
+                          <span className={styles.badge} style={{ 
+                            background: log.action === 'POST' ? '#dcfce3' : log.action === 'DELETE' ? '#fee2e2' : '#fef3c7',
+                            color: log.action === 'POST' ? '#166534' : log.action === 'DELETE' ? '#991b1b' : '#92400e'
+                          }}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td>{log.endpoint}</td>
+                        <td style={{ color: log.status >= 400 ? '#ef4444' : '#10b981' }}>{log.status}</td>
+                        <td>
+                          <details>
+                            <summary>View Data</summary>
+                            <pre style={{ background: '#f8fafc', padding: '0.5rem', borderRadius: '4px', overflowX: 'auto', maxHeight: '150px' }}>
+                              {JSON.stringify(log.details, null, 2)}
+                            </pre>
+                          </details>
+                        </td>
+                      </tr>
+                    ))}
+                    {activities.length === 0 && <tr><td colSpan="7" className={styles.emptyState}>No activities logged yet.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );

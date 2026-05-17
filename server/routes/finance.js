@@ -116,4 +116,81 @@ router.get('/report', protect, authorize('Finance', 'Manager', 'SuperAdmin'), as
   }
 });
 
+// GET detailed sales report for table & CSV
+router.get('/sales-report', protect, authorize('Finance', 'Manager', 'SuperAdmin'), async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    let queryDate = {};
+    if (startDate && endDate) {
+      queryDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    } else {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      queryDate = { $gte: today };
+    }
+
+    const orders = await Order.find({ createdAt: queryDate, status: 'Completed' })
+      .populate('items.product', 'name category')
+      .sort({ createdAt: -1 });
+    
+    res.json(orders);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// GET advanced analytics for charting
+router.get('/analytics-charts', protect, authorize('Finance', 'Manager', 'SuperAdmin'), async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - days);
+    pastDate.setHours(0,0,0,0);
+
+    // Fetch Orders
+    const orders = await Order.find({ createdAt: { $gte: pastDate }, status: 'Completed' });
+    // Fetch Expenses
+    const expenses = await Expense.find({ date: { $gte: pastDate } });
+
+    // Aggregate by Day
+    const trendMap = {};
+    for (let i = 0; i < days; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      trendMap[dateStr] = { date: dateStr, revenue: 0, expenses: 0 };
+    }
+
+    let paymentMethodStats = {};
+
+    orders.forEach(order => {
+      const dateStr = new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (trendMap[dateStr]) trendMap[dateStr].revenue += order.totalAmount;
+      
+      const pm = order.paymentMethod || 'Unknown';
+      paymentMethodStats[pm] = (paymentMethodStats[pm] || 0) + order.totalAmount;
+    });
+
+    expenses.forEach(exp => {
+      const dateStr = new Date(exp.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (trendMap[dateStr]) trendMap[dateStr].expenses += exp.amount;
+    });
+
+    const trendData = Object.values(trendMap).reverse();
+
+    const paymentMethodChart = Object.keys(paymentMethodStats).map(name => ({
+      name,
+      value: paymentMethodStats[name]
+    }));
+
+    res.json({
+      trendData,
+      paymentMethodChart
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
 module.exports = router;

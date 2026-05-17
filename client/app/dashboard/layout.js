@@ -5,6 +5,7 @@ import { useAppContext } from '../../context/AppContext';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import ChatWidget from '../../components/ChatWidget';
+import api from '../../lib/api';
 import styles from './layout.module.css';
 
 export default function DashboardLayout({ children }) {
@@ -27,6 +28,17 @@ export default function DashboardLayout({ children }) {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
+  // Log major page views
+  useEffect(() => {
+    if (pathname && user) {
+      api.post('/activities/log', { 
+        action: 'PAGE_VIEW', 
+        endpoint: pathname, 
+        details: { description: `User visited ${pathname}` } 
+      }).catch(err => console.log('Activity log error:', err));
+    }
+  }, [pathname, user]);
+
   if (!user) return null; // Avoid hydration mismatch or flash
 
   const handleLogout = () => {
@@ -35,11 +47,11 @@ export default function DashboardLayout({ children }) {
   };
 
   const navItems = [
-    { name: 'POS / Sales', path: '/dashboard/pos', roles: ['Sales', 'Manager', 'SuperAdmin'] },
-    { name: 'Online Orders', path: '/dashboard/order', roles: ['Order', 'Manager', 'SuperAdmin'] },
-    { name: 'Kitchen', path: '/dashboard/kitchen', roles: ['Kitchen', 'Manager', 'SuperAdmin'] },
-    { name: 'Store / Inventory', path: '/dashboard/store', roles: ['Store', 'Manager', 'SuperAdmin'] },
-    { name: 'Finance', path: '/dashboard/finance', roles: ['Finance', 'Manager', 'SuperAdmin'] },
+    { name: 'POS / Sales', path: '/dashboard/pos', roles: ['Sales', 'SuperAdmin'] },
+    { name: 'Online Orders', path: '/dashboard/order', roles: ['Order', 'SuperAdmin'] },
+    { name: 'Kitchen', path: '/dashboard/kitchen', roles: ['Kitchen', 'SuperAdmin'] },
+    { name: 'Store / Inventory', path: '/dashboard/store', roles: ['Store', 'SuperAdmin'] },
+    { name: 'Finance', path: '/dashboard/finance', roles: ['Finance', 'SuperAdmin'] },
     { name: 'Manager Overview', path: '/dashboard/manager', roles: ['Manager', 'SuperAdmin'] },
     { name: 'Admin', path: '/dashboard/admin', roles: ['SuperAdmin'] },
   ];

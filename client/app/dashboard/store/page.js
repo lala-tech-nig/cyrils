@@ -9,7 +9,7 @@ import styles from '../manager/manager.module.css'; // Reusing manager styles fo
 export default function StoreDashboard() {
   const { user } = useAppContext();
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('Current Inventory');
+  const [activeTab, setActiveTab] = useState('Overview');
 
   const [inventory, setInventory] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -17,6 +17,7 @@ export default function StoreDashboard() {
   const [kitchenRequests, setKitchenRequests] = useState([]);
   const [kitchenReturns, setKitchenReturns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState(null);
 
   // New Supply Form
   const [supplyForm, setSupplyForm] = useState({
@@ -40,16 +41,18 @@ export default function StoreDashboard() {
 
   const fetchStoreData = async () => {
     try {
-      if (activeTab === 'Current Inventory' || activeTab === 'Restock / New Input') {
-        const [invRes, catRes] = await Promise.all([
+      if (activeTab === 'Overview' || activeTab === 'Inventory Directory' || activeTab === 'Restock') {
+        const [invRes, catRes, analyticsRes] = await Promise.all([
           api.get('/inventory'),
-          api.get('/inventory/categories')
+          api.get('/inventory/categories'),
+          api.get('/inventory/analytics')
         ]);
         setInventory(invRes.data);
         setCategories(catRes.data);
+        setAnalyticsData(analyticsRes.data);
       }
       
-      if (activeTab === 'Kitchen Requests & Returns') {
+      if (activeTab === 'Overview' || activeTab === 'Kitchen Operations') {
         const [reqRes, retRes] = await Promise.all([
           api.get('/kitchen-requests'),
           api.get('/kitchen/returns')
@@ -58,7 +61,7 @@ export default function StoreDashboard() {
         setKitchenReturns(retRes.data);
       }
       
-      if (activeTab === 'Supply History') {
+      if (activeTab === 'Overview' || activeTab === 'Supply History') {
         fetchFilteredHistory();
       }
       
@@ -177,19 +180,22 @@ export default function StoreDashboard() {
       {/* Top Navigation */}
       <nav className={styles.topNav}>
         <div className={styles.navGroup}>
-          <button className={`${styles.navBtn} ${activeTab === 'Current Inventory' ? styles.active : ''}`} onClick={() => setActiveTab('Current Inventory')}>
-            <span className={styles.icon}>📦</span> Current Inventory
+          <button className={`${styles.navBtn} ${activeTab === 'Overview' ? styles.active : ''}`} onClick={() => setActiveTab('Overview')}>
+            <span className={styles.icon}>📊</span> Store Overview
           </button>
-          <button className={`${styles.navBtn} ${activeTab === 'Restock / New Input' ? styles.active : ''}`} onClick={() => setActiveTab('Restock / New Input')}>
-            <span className={styles.icon}>📥</span> Restock Input
+          <button className={`${styles.navBtn} ${activeTab === 'Inventory Directory' ? styles.active : ''}`} onClick={() => setActiveTab('Inventory Directory')}>
+            <span className={styles.icon}>📦</span> Inventory Directory
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'Restock' ? styles.active : ''}`} onClick={() => setActiveTab('Restock')}>
+            <span className={styles.icon}>📥</span> Log Supply
           </button>
           <button className={`${styles.navBtn} ${activeTab === 'Supply History' ? styles.active : ''}`} onClick={() => setActiveTab('Supply History')}>
-            <span className={styles.icon}>📋</span> Supply History
+            <span className={styles.icon}>📋</span> Supply Ledger
           </button>
         </div>
 
         <div className={styles.navGroup}>
-          <button className={`${styles.navBtn} ${activeTab === 'Kitchen Requests & Returns' ? styles.active : ''}`} onClick={() => setActiveTab('Kitchen Requests & Returns')}>
+          <button className={`${styles.navBtn} ${activeTab === 'Kitchen Operations' ? styles.active : ''}`} onClick={() => setActiveTab('Kitchen Operations')}>
             <span className={styles.icon}>🔔</span> Kitchen Operations
             {(kitchenRequests.filter(r => r.status === 'Pending').length + kitchenReturns.filter(r => r.status === 'Pending').length) > 0 && (
               <span style={{ background: '#ef4444', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '0.5rem' }}>
@@ -212,24 +218,99 @@ export default function StoreDashboard() {
           </button>
         </header>
 
-        {/* INVENTORY TAB */}
-        {activeTab === 'Current Inventory' && (
-          <div style={{ animation: 'fadeIn 0.3s ease' }}>
+        {/* OVERVIEW TAB */}
+        {activeTab === 'Overview' && analyticsData && (
+          <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div className={styles.statsGrid}>
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Total Inventory Value</div>
-                <div className={styles.statValue}>₦{totalStoreValue.toLocaleString()}</div>
+              <div className={styles.statCard} style={{ background: '#f8fafc', borderLeft: '4px solid #3b82f6' }}>
+                <div className={styles.statLabel}>Est. Inventory Cost Value</div>
+                <div className={styles.statValue} style={{ color: '#1e293b' }}>₦{analyticsData.totalValue?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                <div className={styles.statSub}>{analyticsData.totalItems} items tracked</div>
               </div>
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Total Items Tracked</div>
-                <div className={styles.statValue}>{inventory.length}</div>
+              <div className={styles.statCard} style={{ background: '#ecfdf5', borderLeft: '4px solid #10b981' }}>
+                <div className={styles.statLabel}>Est. Retail Value</div>
+                <div className={styles.statValue} style={{ color: '#059669' }}>₦{analyticsData.totalRetailValue?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                <div className={styles.statSub}>Potential Profit: ₦{analyticsData.potentialProfit?.toLocaleString()}</div>
               </div>
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Categories</div>
-                <div className={styles.statValue}>{categories.length}</div>
+              <div className={styles.statCard} style={{ background: '#fef2f2', borderLeft: '4px solid #ef4444' }}>
+                <div className={styles.statLabel}>Low Stock Alerts</div>
+                <div className={styles.statValue} style={{ color: '#dc2626' }}>{analyticsData.lowStockItems?.length} Items</div>
+                <div className={styles.statSub}>Require immediate restocking</div>
+              </div>
+              <div className={styles.statCard} style={{ background: '#fffbeb', borderLeft: '4px solid #f59e0b' }}>
+                <div className={styles.statLabel}>Pending Kitchen Ops</div>
+                <div className={styles.statValue} style={{ color: '#d97706' }}>
+                  {kitchenRequests.filter(r => r.status === 'Pending').length + kitchenReturns.filter(r => r.status === 'Pending').length} Action(s)
+                </div>
+                <div className={styles.statSub}>Requests & Returns awaiting approval</div>
               </div>
             </div>
 
+            <div className={styles.twoCol}>
+              <div className={styles.panel} style={{ borderTop: '4px solid #ef4444' }}>
+                <div className={styles.panelHeader} style={{ background: '#fef2f2' }}>
+                  <h2 className={styles.panelTitle} style={{ color: '#ef4444' }}>⚠️ Urgent Low Stock</h2>
+                </div>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Category</th>
+                        <th>Qty Left</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsData.lowStockItems?.slice(0, 5).map(item => (
+                        <tr key={item._id}>
+                          <td style={{ fontWeight: 600 }}>{item.itemName}</td>
+                          <td><span className={`${styles.badge} ${styles.badgeGray}`}>{item.category}</span></td>
+                          <td style={{ fontWeight: 800, color: '#ef4444' }}>{item.quantityInStock} {item.unit}</td>
+                        </tr>
+                      ))}
+                      {analyticsData.lowStockItems?.length === 0 && (
+                        <tr><td colSpan="3" className={styles.emptyState}>All items are adequately stocked!</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <h2 className={styles.panelTitle}>Recent Incoming Supplies</h2>
+                </div>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Item</th>
+                        <th>Qty Added</th>
+                        <th>Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {supplyHistory.slice(0, 5).map(history => (
+                        <tr key={history._id}>
+                          <td style={{ fontSize: '0.8rem' }}>{new Date(history.suppliedAt).toLocaleDateString()}</td>
+                          <td style={{ fontWeight: 600 }}>{history.inventoryItem?.itemName || 'Unknown Item'}</td>
+                          <td style={{ fontWeight: 800, color: '#16a34a' }}>+{history.quantity} {history.unit}</td>
+                          <td>₦{history.cost.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                      {supplyHistory.length === 0 && <tr><td colSpan="4" className={styles.emptyState}>No recent supply history.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* INVENTORY TAB */}
+        {activeTab === 'Inventory Directory' && (
+          <div style={{ animation: 'fadeIn 0.3s ease' }}>
             <div className={styles.panel}>
               <div className={styles.filterBar}>
                 <input 
@@ -284,7 +365,7 @@ export default function StoreDashboard() {
         )}
 
         {/* RESTOCK / NEW INPUT TAB */}
-        {activeTab === 'Restock / New Input' && (
+        {activeTab === 'Restock' && (
           <div className={styles.panel} style={{ animation: 'fadeIn 0.3s ease', maxWidth: '800px' }}>
             <div className={styles.panelHeader}>
               <h2 className={styles.panelTitle}>Log Incoming Supply</h2>
@@ -448,7 +529,7 @@ export default function StoreDashboard() {
         )}
 
         {/* KITCHEN REQUESTS & RETURNS TAB */}
-        {activeTab === 'Kitchen Requests & Returns' && (
+        {activeTab === 'Kitchen Operations' && (
           <div className={styles.twoCol} style={{ animation: 'fadeIn 0.3s ease' }}>
             <div className={styles.panel}>
               <div className={styles.panelHeader}>

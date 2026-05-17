@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Attendance = require('../models/Attendance');
 const Settings = require('../models/Settings');
+const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
 
 // Helper to calculate distance in meters
@@ -87,6 +88,51 @@ router.post('/check-out', protect, async (req, res) => {
     attendance.checkOut = new Date();
     await attendance.save();
     res.json(attendance);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// @route   POST /api/attendance/force-checkout/:userId
+// @desc    Manager/Finance forces a user to checkout and locks shift
+router.post('/force-checkout/:userId', protect, authorize('SuperAdmin', 'Manager', 'Finance'), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // 1. Close attendance log
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const attendance = await Attendance.findOne({
+      user: userId,
+      date: { $gte: startOfDay },
+      checkOut: { $exists: false }
+    });
+
+    if (attendance) {
+      attendance.checkOut = new Date();
+      await attendance.save();
+    }
+
+    // 2. Lock user account for 8 hours (ONLY for Sales role)
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.role !== 'Sales') {
+      return res.status(403).json({ message: 'Only Sales accounts can be forcefully checked out and locked.' });
+    }
+
+    const lockUntil = new Date();
+    lockUntil.setHours(lockUntil.getHours() + 8);
+    user.shiftLockedUntil = lockUntil;
+    await user.save();
+
+    // 3. Emit a socket event to force the user client to logout
+    if (req.io) {
+      req.io.emit('force_logout', { userId });
+    }
+
+    res.json({ message: 'Shift closed and account locked for 8 hours.', user });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

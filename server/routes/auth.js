@@ -11,6 +11,11 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials or inactive account' });
     }
 
+    if (user.shiftLockedUntil && new Date() < new Date(user.shiftLockedUntil)) {
+      const unlockTime = new Date(user.shiftLockedUntil).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' });
+      return res.status(403).json({ message: `Shift ended. Account is locked until ${unlockTime}` });
+    }
+
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });

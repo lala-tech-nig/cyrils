@@ -19,6 +19,18 @@ const productSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  taxPercent: {
+    type: Number,
+    default: 0
+  },
+  discountPercent: {
+    type: Number,
+    default: 0
+  },
+  discountExpiry: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

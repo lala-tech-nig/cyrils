@@ -48,4 +48,20 @@ router.put('/:id', protect, authorize('SuperAdmin'), async (req, res) => {
   }
 });
 
+// POST end shift for a user
+router.post('/:id/end-shift', protect, authorize('SuperAdmin', 'Manager', 'Finance', 'Kitchen'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    // Lock out for 8 hours
+    user.shiftLockedUntil = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    await user.save();
+    
+    res.json({ message: 'Shift ended and account locked for 8 hours', shiftLockedUntil: user.shiftLockedUntil });
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
 module.exports = router;

@@ -14,8 +14,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Admin/Manager: Create a product
-router.post('/', protect, authorize('SuperAdmin', 'Manager'), upload.single('image'), async (req, res) => {
+// Admin/Manager/Finance: Create a product
+router.post('/', protect, authorize('SuperAdmin', 'Manager', 'Finance'), upload.single('image'), async (req, res) => {
   try {
     const productData = {
       ...req.body,
@@ -30,8 +30,8 @@ router.post('/', protect, authorize('SuperAdmin', 'Manager'), upload.single('ima
   }
 });
 
-// Admin/Manager: Update a product
-router.put('/:id', protect, authorize('SuperAdmin', 'Manager'), upload.single('image'), async (req, res) => {
+// Admin/Manager/Finance: Update a product
+router.put('/:id', protect, authorize('SuperAdmin', 'Manager', 'Finance'), upload.single('image'), async (req, res) => {
   try {
     const updateData = { ...req.body };
     if (req.file) updateData.imageUrl = req.file.path;
@@ -44,8 +44,8 @@ router.put('/:id', protect, authorize('SuperAdmin', 'Manager'), upload.single('i
   }
 });
 
-// Admin/Manager: Delete (or deactivate) a product
-router.delete('/:id', protect, authorize('SuperAdmin', 'Manager'), async (req, res) => {
+// Admin/Manager/Finance: Delete (or deactivate) a product
+router.delete('/:id', protect, authorize('SuperAdmin', 'Manager', 'Finance'), async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ message: 'Product not found' });
