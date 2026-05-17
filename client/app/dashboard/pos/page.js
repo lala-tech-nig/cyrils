@@ -13,9 +13,9 @@ export default function POSPage() {
   
   const [products, setProducts] = useState([]);
   const [posCart, setPosCart] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('FOOD');
   const [searchTerm, setSearchTerm] = useState('');
-  const categories = ['All', 'FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK', 'PACK', 'ICE CREAM', 'PASTRY'];
+  const categories = ['FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK', 'PACK', 'ICE CREAM', 'PASTRY'];
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [prComment, setPrComment] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
@@ -37,6 +37,7 @@ export default function POSPage() {
   
   const [waitingSelfOrders, setWaitingSelfOrders] = useState([]);
   const [activeSelfOrderId, setActiveSelfOrderId] = useState(null);
+  const [showAllSelfOrders, setShowAllSelfOrders] = useState(false);
   
   // Pending Orders Widget Dragging State
   const [pendingPosition, setPendingPosition] = useState({ x: 0, y: 0 });
@@ -52,20 +53,27 @@ export default function POSPage() {
   useEffect(() => {
     if (!socket) return;
     
-    socket.on('new_self_order', (order) => {
-      setWaitingSelfOrders(prev => [order, ...prev]);
+    const handleNewSelfOrder = (order) => {
+      setWaitingSelfOrders(prev => {
+        // Prevent duplicate appending
+        if (prev.some(o => o._id === order._id)) return prev;
+        return [order, ...prev];
+      });
       toast.info(`New self-order from ${order.customerName || 'Customer'}`);
-    });
+    };
     
-    socket.on('order_completed', (order) => {
+    const handleOrderCompleted = (order) => {
       setWaitingSelfOrders(prev => prev.filter(o => o._id !== order._id));
-    });
+    };
+
+    socket.on('new_self_order', handleNewSelfOrder);
+    socket.on('order_completed', handleOrderCompleted);
 
     return () => {
-      socket.off('new_self_order');
-      socket.off('order_completed');
+      socket.off('new_self_order', handleNewSelfOrder);
+      socket.off('order_completed', handleOrderCompleted);
     };
-  }, [socket, toast]);
+  }, [socket]); // Removed toast to prevent rapid re-mounting
 
   // Broadcast cart changes to VFD screen
   useEffect(() => {
@@ -236,6 +244,18 @@ export default function POSPage() {
     toast.success(`Loaded order for ${order.customerName || 'Customer'}`);
   };
 
+  const removeSelfOrder = async (id) => {
+    if (!window.confirm("Are you sure you want to dismiss this self-order?")) return;
+    try {
+      await api.put(`/orders/${id}/status`, { status: 'Declined' });
+      setWaitingSelfOrders(prev => prev.filter(o => o._id !== id));
+      toast.success('Self-order removed');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to remove self-order');
+    }
+  };
+
   const handleCheckout = () => {
     if (posCart.length === 0) return;
     if (paymentMethod === 'PR' && !prComment.trim()) {
@@ -346,7 +366,7 @@ export default function POSPage() {
   };
 
   const filteredProducts = products.filter(p => {
-    const matchesCategory = selectedCategory === 'All' || (p.category || '').toUpperCase() === selectedCategory;
+    const matchesCategory = (p.category || '').toUpperCase() === selectedCategory;
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
@@ -381,21 +401,46 @@ export default function POSPage() {
         {waitingSelfOrders.length > 0 && (
           <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
             <h3 style={{ fontSize: '0.9rem', color: '#334155', marginBottom: '0.5rem' }}>👥 Customer Self-Orders ({waitingSelfOrders.length})</h3>
-            <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-              {waitingSelfOrders.map(o => (
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: showAllSelfOrders ? 'wrap' : 'nowrap', overflowX: showAllSelfOrders ? 'visible' : 'auto', paddingBottom: '0.5rem' }}>
+              {(showAllSelfOrders ? waitingSelfOrders : waitingSelfOrders.slice(0, 3)).map(o => (
                 <div key={o._id} style={{ background: 'white', padding: '0.75rem', borderRadius: '6px', minWidth: '220px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                   <div>
                     <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#f97316' }}>{o.customerName || 'Walk-In'}</div>
                     <div style={{ fontSize: '0.8rem', color: '#666' }}>{o.items.length} items | {new Date(o.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                   </div>
-                  <button 
-                    onClick={() => loadSelfOrder(o)}
-                    style={{ background: '#f97316', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
-                  >
-                    Load
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <button 
+                      onClick={() => loadSelfOrder(o)}
+                      style={{ background: '#f97316', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                    >
+                      Load
+                    </button>
+                    <button 
+                      onClick={() => removeSelfOrder(o._id)}
+                      style={{ background: '#f1f5f9', color: '#ef4444', border: '1px solid #cbd5e1', padding: '0.4rem 0.6rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                      title="Dismiss if customer is not found"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               ))}
+              {!showAllSelfOrders && waitingSelfOrders.length > 3 && (
+                <button 
+                  onClick={() => setShowAllSelfOrders(true)}
+                  style={{ background: '#e2e8f0', color: '#475569', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold', minWidth: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}
+                >
+                  +{waitingSelfOrders.length - 3} More
+                </button>
+              )}
+              {showAllSelfOrders && waitingSelfOrders.length > 3 && (
+                <button 
+                  onClick={() => setShowAllSelfOrders(false)}
+                  style={{ background: '#e2e8f0', color: '#475569', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold', minWidth: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}
+                >
+                  Show Less
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -439,40 +484,17 @@ export default function POSPage() {
         <div className={styles.menuGrid}>
           {filteredProducts.map(product => (
             <div key={product._id} className={styles.menuCard} onClick={() => addToPosCart(product)}>
-              {product.imageUrl && (
-                <div 
-                  style={{ 
-                    height: '120px', 
-                    width: '100%', 
-                    backgroundImage: `url(${product.imageUrl})`, 
-                    backgroundSize: '100% 100%', 
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center',
-                    borderRadius: '4px',
-                    marginBottom: '0.5rem'
-                  }} 
-                />
-              )}
-              {!product.imageUrl && (
-                <div 
-                  style={{ 
-                    height: '120px', 
-                    width: '100%', 
-                    backgroundColor: '#f3f4f6', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    borderRadius: '4px',
-                    marginBottom: '0.5rem',
-                    color: '#9ca3af',
-                    fontSize: '0.8rem'
-                  }}
-                >
-                  No Image
-                </div>
-              )}
-              <div className={styles.menuItemName}>{product.name}</div>
-              <div className={styles.menuItemPrice}>₦{product.price}</div>
+              <div 
+                className={styles.imagePlaceholder} 
+                style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : {}}
+              >
+                {!product.imageUrl && 'No Image'}
+                <div className={styles.addBadge}>+</div>
+              </div>
+              <div className={styles.cardContent}>
+                <div className={styles.menuItemName}>{product.name}</div>
+                <div className={styles.menuItemPrice}>₦{product.price}</div>
+              </div>
             </div>
           ))}
         </div>

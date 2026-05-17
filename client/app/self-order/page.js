@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Confetti from 'react-confetti';
 import api from '../../lib/api';
 import styles from './page.module.css';
 
 export default function SelfOrderPage() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [categories, setCategories] = useState(['All', 'FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK', 'PACK', 'ICE CREAM', 'PASTRY']);
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [categories, setCategories] = useState(['FOOD', 'PROTEIN', 'SOUP', 'SWALLOW', 'SIDE', 'DRINK', 'PACK', 'ICE CREAM', 'PASTRY']);
+  const [selectedCategory, setSelectedCategory] = useState('FOOD');
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [currentPack, setCurrentPack] = useState(1);
   const [totalPacks, setTotalPacks] = useState(1);
@@ -19,9 +21,19 @@ export default function SelfOrderPage() {
   
   // Mobile cart overlay state
   const [isCartOpen, setIsCartOpen] = useState(false);
+  
+  // Window size for Confetti
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     fetchProducts();
+    
+    if (typeof window !== 'undefined') {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+      const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
   }, []);
 
   const fetchProducts = async () => {
@@ -104,9 +116,11 @@ export default function SelfOrderPage() {
     setIsSuccess(false);
   };
 
-  const filteredProducts = products.filter(p => 
-    selectedCategory === 'All' || (p.category || '').toUpperCase() === selectedCategory
-  );
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = (p.category || '').toUpperCase() === selectedCategory;
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.priceAtTime * item.quantity), 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -114,6 +128,15 @@ export default function SelfOrderPage() {
   if (isSuccess) {
     return (
       <div className={styles.successScreen}>
+        {windowSize.width > 0 && (
+          <Confetti 
+            width={windowSize.width} 
+            height={windowSize.height} 
+            recycle={false} 
+            numberOfPieces={600} 
+            gravity={0.15}
+          />
+        )}
         <div className={styles.checkmark}>✓</div>
         <h2>Order Sent!</h2>
         <p>Please wait nearby or find a seat. The cashier will call your name (<strong>{customerName}</strong>) to confirm and process payment.</p>
@@ -122,7 +145,7 @@ export default function SelfOrderPage() {
     );
   }
 
-  const CartComponent = () => (
+  const cartContent = (
     <div className={styles.cartContainer}>
       <div className={styles.cartHeader}>
         Your Tray <span>🛍️</span>
@@ -219,6 +242,17 @@ export default function SelfOrderPage() {
       <main className={styles.main}>
         {/* Menu Side */}
         <section className={styles.menuSection}>
+          <div style={{ marginBottom: '1rem' }}>
+            <input 
+              type="text" 
+              placeholder="🔍 Search for a meal..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className={styles.nameInput}
+              style={{ padding: '0.8rem', fontSize: '1rem', marginBottom: '0.5rem' }}
+            />
+          </div>
+
           <div className={styles.categoryFilters}>
             {categories.map(cat => (
               <button 
@@ -257,7 +291,7 @@ export default function SelfOrderPage() {
 
         {/* Desktop Cart Side */}
         <aside className={styles.cartDesktop}>
-          <CartComponent />
+          {cartContent}
         </aside>
       </main>
 
@@ -275,7 +309,7 @@ export default function SelfOrderPage() {
       }}>
         <div className={styles.bottomSheetContent}>
           <div className={styles.closeHandle} onClick={() => setIsCartOpen(false)}></div>
-          <CartComponent />
+          {cartContent}
         </div>
       </div>
     </div>

@@ -39,6 +39,7 @@
 /* --- Main Layout --- */
 .main {
   display: flex;
+  flex-direction: column;
   flex: 1;
   padding: 1rem;
   gap: 2rem;
@@ -64,6 +65,7 @@
     display: block;
   }
   .main {
+    flex-direction: row;
     padding-bottom: 2rem; /* Remove floating cart space on desktop */
   }
 }
@@ -71,8 +73,8 @@
 /* --- Category Chips --- */
 .categoryFilters {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
-  overflow-x: auto;
   padding-bottom: 1rem;
   margin-bottom: 0.5rem;
   scrollbar-width: none; /* Firefox */
