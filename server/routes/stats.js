@@ -54,8 +54,17 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) =>
         return sum;
       }, 0),
       transferReceived: todayOrders.reduce((sum, o) => {
-        if (o.paymentMethod === 'Transfer' || o.paymentMethod === 'Card') return sum + (o.totalAmount || 0);
-        if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.transfer || 0) + (o.mixedPayments.card || 0);
+        if (['Transfer', 'Card', 'FCMB 1', 'FCMB 2', 'GT BANK'].includes(o.paymentMethod)) {
+          return sum + (o.totalAmount || 0);
+        }
+        if (o.paymentMethod === 'Mixed' && o.mixedPayments) {
+          return sum + 
+            (o.mixedPayments.transfer || 0) + 
+            (o.mixedPayments.card || 0) + 
+            (o.mixedPayments.fcmb1 || 0) + 
+            (o.mixedPayments.fcmb2 || 0) + 
+            (o.mixedPayments.gtbank || 0);
+        }
         return sum;
       }, 0),
       prTotal: todayOrders.filter(o => o.paymentMethod === 'PR').reduce((sum, o) => sum + (o.totalAmount || 0), 0),

@@ -458,7 +458,7 @@ export default function ManagerDashboard() {
                 <div className={styles.statValue} style={{ color: '#16a34a' }}>₦{stats.cashReceived?.toLocaleString()}</div>
               </div>
               <div className={styles.statCard}>
-                <div className={styles.statLabel}>Transfers/Card (Today)</div>
+                <div className={styles.statLabel}>Bank Payments (Today)</div>
                 <div className={styles.statValue} style={{ color: '#2563eb' }}>₦{stats.transferReceived?.toLocaleString()}</div>
               </div>
               <div className={styles.statCard}>
@@ -532,6 +532,9 @@ export default function ManagerDashboard() {
                   <option value="Cash">Cash</option>
                   <option value="Card">Card</option>
                   <option value="Transfer">Transfer</option>
+                  <option value="FCMB 1">FCMB 1</option>
+                  <option value="FCMB 2">FCMB 2</option>
+                  <option value="GT BANK">GT BANK</option>
                   <option value="Mixed">Mixed</option>
                   <option value="Customer Account">Customer Account</option>
                   <option value="PR">PR</option>

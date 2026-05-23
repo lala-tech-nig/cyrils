@@ -675,6 +675,9 @@ export default function FinanceDashboard() {
                   <option value="Cash">Cash</option>
                   <option value="Card">Card</option>
                   <option value="Transfer">Transfer</option>
+                  <option value="FCMB 1">FCMB 1</option>
+                  <option value="FCMB 2">FCMB 2</option>
+                  <option value="GT BANK">GT BANK</option>
                   <option value="Mixed">Mixed</option>
                   <option value="Customer Account">Customer Account</option>
                   <option value="PR">PR</option>
