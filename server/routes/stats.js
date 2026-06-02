@@ -14,10 +14,38 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) =>
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const [todayOrders, monthOrders, allOrders, staffCount, users] = await Promise.all([
-      Order.find({ createdAt: { $gte: startOfDay } }).populate('items.product'),
-      Order.find({ createdAt: { $gte: startOfMonth } }).populate('items.product'),
-      Order.find({}).populate('items.product'),
+    const [todayOrders, monthOrders, topItems, staffCount, users] = await Promise.all([
+      Order.find({ createdAt: { $gte: startOfDay } }),
+      Order.find({ createdAt: { $gte: startOfMonth } }),
+      Order.aggregate([
+        { $unwind: '$items' },
+        {
+          $group: {
+            _id: '$items.product',
+            qty: { $sum: '$items.quantity' },
+            revenue: { $sum: { $multiply: ['$items.quantity', '$items.priceAtTime'] } }
+          }
+        },
+        {
+          $lookup: {
+            from: 'products',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'productInfo'
+          }
+        },
+        { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 0,
+            name: { $ifNull: ['$productInfo.name', 'Unknown'] },
+            qty: 1,
+            revenue: 1
+          }
+        },
+        { $sort: { qty: -1 } },
+        { $limit: 20 }
+      ]),
       User.countDocuments({ isActive: true }),
       User.find({ isActive: true }).select('username role createdAt')
     ]);
@@ -29,19 +57,6 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) =>
       salesPerStaff[staff] = (salesPerStaff[staff] || 0) + (order.totalAmount || 0);
     });
 
-    // Top selling items (all time)
-    const itemSales = {};
-    allOrders.forEach(order => {
-      order.items.forEach(item => {
-        const name = item.product?.name || 'Unknown';
-        if (!itemSales[name]) itemSales[name] = { qty: 0, revenue: 0 };
-        itemSales[name].qty += item.quantity;
-        itemSales[name].revenue += item.quantity * (item.priceAtTime || 0);
-      });
-    });
-    const topItems = Object.entries(itemSales)
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.qty - a.qty);
 
     const stats = {
       totalSales: todayOrders.filter(o => o.paymentMethod !== 'PR' || o.prApproved).reduce((sum, o) => sum + (o.totalAmount || 0), 0),
