@@ -706,7 +706,7 @@ export default function FinanceDashboard() {
                       <td style={{ color: '#64748b' }}>{new Date(order.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</td>
                       <td style={{ fontWeight: 600 }}>...{order._id.slice(-6)}</td>
                       <td><span className={`${styles.badge} ${styles.badgeGray}`}>{order.paymentMethod}</span></td>
-                      <td>{order.salesPersonName || 'System'}</td>
+                      <td>{order.salesPersonName || order.salesPerson?.username || 'System'}</td>
                       <td style={{ color: '#3b82f6', fontWeight: 600 }}>{order.items.length} items</td>
                       <td style={{ fontWeight: 800, color: '#16a34a' }}>₦{order.totalAmount?.toLocaleString()}</td>
                       <td>
@@ -732,7 +732,7 @@ export default function FinanceDashboard() {
                     <div><span style={{ color: '#64748b' }}>Order ID:</span> <strong>{selectedOrder._id}</strong></div>
                     <div><span style={{ color: '#64748b' }}>Date:</span> <strong>{new Date(selectedOrder.createdAt).toLocaleString()}</strong></div>
                     <div><span style={{ color: '#64748b' }}>Payment Method:</span> <strong>{selectedOrder.paymentMethod}</strong></div>
-                    <div><span style={{ color: '#64748b' }}>Cashier:</span> <strong>{selectedOrder.salesPersonName || 'N/A'}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Cashier:</span> <strong>{selectedOrder.salesPersonName || selectedOrder.salesPerson?.username || 'N/A'}</strong></div>
                     {selectedOrder.paymentMethod === 'Customer Account' && selectedOrder.customerId && (
                        <div><span style={{ color: '#64748b' }}>Customer ID:</span> <strong>{selectedOrder.customerId}</strong></div>
                     )}

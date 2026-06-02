@@ -75,7 +75,8 @@ const orderSchema = new mongoose.Schema({
   salesPerson: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }
+  },
+  salesPersonName: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

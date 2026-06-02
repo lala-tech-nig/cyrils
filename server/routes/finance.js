@@ -131,6 +131,7 @@ router.get('/sales-report', protect, authorize('Finance', 'Manager', 'SuperAdmin
 
     const orders = await Order.find({ createdAt: queryDate, status: 'Completed' })
       .populate('items.product', 'name category')
+      .populate('salesPerson', 'username')
       .sort({ createdAt: -1 });
     
     res.json(orders);
