@@ -53,6 +53,7 @@ export default function DashboardLayout({ children }) {
     { name: 'Store / Inventory', path: '/dashboard/store', roles: ['Store', 'SuperAdmin'] },
     { name: 'Finance', path: '/dashboard/finance', roles: ['Finance', 'SuperAdmin'] },
     { name: 'Manager Overview', path: '/dashboard/manager', roles: ['Manager', 'SuperAdmin'] },
+    { name: 'Eatery Counter', path: '/dashboard/eatery', roles: ['Eatery', 'SuperAdmin'] },
     { name: 'Admin', path: '/dashboard/admin', roles: ['SuperAdmin'] },
   ];
 

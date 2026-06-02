@@ -18,6 +18,7 @@ const seedUsers = async () => {
       { username: 'sales', email: 'sales@cyrils.com', password: 'password123', role: 'Sales' },
       { username: 'kitchen', email: 'kitchen@cyrils.com', password: 'password123', role: 'Kitchen' },
       { username: 'store', email: 'store@cyrils.com', password: 'password123', role: 'Store' },
+      { username: 'eatery', email: 'eatery@cyrils.com', password: 'password123', role: 'Eatery' },
     ];
 
     console.log('Inserting seed users...');

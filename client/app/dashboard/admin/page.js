@@ -380,6 +380,7 @@ export default function AdminDashboard() {
                       <option value="Kitchen">Kitchen</option>
                       <option value="Store">Store</option>
                       <option value="Order">Order</option>
+                      <option value="Eatery">Eatery</option>
                     </select>
                   </div>
                   <div className={`${styles.formGroup} ${styles.full}`}>

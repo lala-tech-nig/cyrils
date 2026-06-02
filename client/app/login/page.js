@@ -59,6 +59,8 @@ export default function LoginPage() {
           router.push('/dashboard/kitchen');
         } else if (loginData.user.role === 'Store') {
           router.push('/dashboard/store');
+        } else if (loginData.user.role === 'Eatery') {
+          router.push('/dashboard/eatery');
         } else {
           router.push('/dashboard/attendance');
         }

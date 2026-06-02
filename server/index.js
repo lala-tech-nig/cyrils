@@ -106,6 +106,7 @@ app.use('/api/transfers', require('./routes/transfers'));
 app.use('/api/kitchen', require('./routes/kitchen'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/kitchen-requests', require('./routes/kitchenRequests'));
+app.use('/api/eatery-requests', require('./routes/eateryRequests'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/activities', require('./routes/activities'));

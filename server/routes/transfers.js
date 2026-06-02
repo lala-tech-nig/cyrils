@@ -4,9 +4,13 @@ const Transfer = require('../models/Transfer');
 const { protect, authorize } = require('../middleware/auth');
 
 // GET all transfers
-router.get('/', protect, authorize('Manager', 'SuperAdmin', 'Kitchen'), async (req, res) => {
+router.get('/', protect, authorize('Manager', 'SuperAdmin', 'Kitchen', 'Eatery'), async (req, res) => {
   try {
-    const transfers = await Transfer.find()
+    let query = {};
+    if (req.user.role === 'Eatery') {
+      query.to = 'Eatery';
+    }
+    const transfers = await Transfer.find(query)
       .populate('product', 'name')
       .populate('handledBy', 'username')
       .sort({ createdAt: -1 });
@@ -19,12 +23,13 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin', 'Kitchen'), async (r
 // POST a transfer (usually by Kitchen staff)
 router.post('/', protect, async (req, res) => {
   try {
-    const { product, quantity, unit, kitchenComment } = req.body;
+    const { product, quantity, unit, kitchenComment, to } = req.body;
     const newTransfer = new Transfer({
       product,
       quantity,
       unit,
       kitchenComment,
+      to: to || 'Sales',
       handledBy: req.user.id
     });
     await newTransfer.save();
@@ -33,10 +38,12 @@ router.post('/', protect, async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 });
-// GET pending transfers for Sales/POS
+
+// GET pending transfers for Sales/POS or Eatery
 router.get('/pending', protect, async (req, res) => {
   try {
-    const transfers = await Transfer.find({ status: 'Pending', managerStatus: 'Approved' })
+    const dest = req.user.role === 'Eatery' ? 'Eatery' : 'Sales';
+    const transfers = await Transfer.find({ status: 'Pending', managerStatus: 'Approved', to: dest })
       .populate('product', 'name')
       .populate('handledBy', 'username');
     res.json(transfers);

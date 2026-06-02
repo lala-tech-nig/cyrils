@@ -20,7 +20,7 @@ export default function KitchenDashboard() {
   // Forms
   const [newTask, setNewTask] = useState({ rawMaterial: '', quantity: '', product: '', expectedPortions: '' });
   const [newRequest, setNewRequest] = useState({ inventoryItem: '', quantityRequested: '', unit: 'Kg', expectedPortions: '', comment: '' });
-  const [newTransfer, setNewTransfer] = useState({ product: '', quantity: '', unit: 'Number', kitchenComment: '' });
+  const [newTransfer, setNewTransfer] = useState({ product: '', quantity: '', unit: 'Number', kitchenComment: '', to: 'Sales' });
   const [newReturn, setNewReturn] = useState({ inventoryItem: '', quantityReturned: '', unit: 'Kg', comment: '' });
 
   // End of Day
@@ -97,7 +97,7 @@ export default function KitchenDashboard() {
     e.preventDefault();
     try {
       await api.post('/transfers', newTransfer);
-      setNewTransfer({ product: '', quantity: '', unit: 'Number', kitchenComment: '' });
+      setNewTransfer({ product: '', quantity: '', unit: 'Number', kitchenComment: '', to: 'Sales' });
       fetchData();
       toast.success('Transfer logged. Waiting for Manager Approval.');
     } catch (err) { toast.error('Error creating transfer'); }
@@ -258,6 +258,13 @@ export default function KitchenDashboard() {
                     </select>
                   </div>
                 </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Destination Counter</label>
+                  <select className={styles.formControl} value={newTransfer.to} onChange={e => setNewTransfer({...newTransfer, to: e.target.value})}>
+                    <option value="Sales">Sales Counter (POS)</option>
+                    <option value="Eatery">Eatery Counter</option>
+                  </select>
+                </div>
                 <div className={`${styles.formGroup} ${styles.full}`}>
                   <label className={styles.formLabel}>Comment for Manager (Optional)</label>
                   <input type="text" className={styles.formControl} placeholder="e.g., Output was slightly lower due to spillage" value={newTransfer.kitchenComment} onChange={e => setNewTransfer({...newTransfer, kitchenComment: e.target.value})} />
@@ -276,8 +283,9 @@ export default function KitchenDashboard() {
                     <th>Date</th>
                     <th>Product</th>
                     <th>Volume Sent</th>
+                    <th>Destination</th>
                     <th>Manager Status</th>
-                    <th>Sales Status</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -286,6 +294,11 @@ export default function KitchenDashboard() {
                       <td>{new Date(trans.createdAt).toLocaleString()}</td>
                       <td style={{ fontWeight: 600 }}>{trans.product?.name}</td>
                       <td>{trans.quantity} {trans.unit}</td>
+                      <td>
+                        <span className={styles.badge} style={{ background: trans.to === 'Eatery' ? '#ffedd5' : '#dcfce3', color: trans.to === 'Eatery' ? '#ea580c' : '#166534', border: 'none' }}>
+                          {trans.to || 'Sales'}
+                        </span>
+                      </td>
                       <td>
                         <span className={`${styles.badge} ${trans.managerStatus === 'Approved' ? styles.badgeGreen : trans.managerStatus === 'Rejected' ? styles.badgeRed : styles.badgeOrange}`}>
                           {trans.managerStatus}

@@ -16,6 +16,7 @@ export default function StoreDashboard() {
   const [supplyHistory, setSupplyHistory] = useState([]);
   const [kitchenRequests, setKitchenRequests] = useState([]);
   const [kitchenReturns, setKitchenReturns] = useState([]);
+  const [eateryRequests, setEateryRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState(null);
 
@@ -52,13 +53,15 @@ export default function StoreDashboard() {
         setAnalyticsData(analyticsRes.data);
       }
       
-      if (activeTab === 'Overview' || activeTab === 'Kitchen Operations') {
-        const [reqRes, retRes] = await Promise.all([
+      if (activeTab === 'Overview' || activeTab === 'Kitchen Operations' || activeTab === 'Eatery Operations') {
+        const [reqRes, retRes, eatRes] = await Promise.all([
           api.get('/kitchen-requests'),
-          api.get('/kitchen/returns')
+          api.get('/kitchen/returns'),
+          api.get('/eatery-requests')
         ]);
         setKitchenRequests(reqRes.data);
         setKitchenReturns(retRes.data);
+        setEateryRequests(eatRes.data);
       }
       
       if (activeTab === 'Overview' || activeTab === 'Supply History') {
@@ -160,6 +163,16 @@ export default function StoreDashboard() {
       toast.error(err.response?.data?.message || `Error processing return`);
     }
   };
+  
+  const handleEateryRequestAction = async (id, action) => {
+    try {
+      await api.put(`/eatery-requests/${id}/status`, { action });
+      toast.success(`Eatery Request ${action}ed successfully`);
+      fetchStoreData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || `Error processing request`);
+    }
+  };
 
   if (!user || (user.role !== 'Store' && user.role !== 'Manager' && user.role !== 'SuperAdmin')) {
     return <div style={{ padding: '2rem' }}>Unauthorized Access</div>;
@@ -196,10 +209,18 @@ export default function StoreDashboard() {
 
         <div className={styles.navGroup}>
           <button className={`${styles.navBtn} ${activeTab === 'Kitchen Operations' ? styles.active : ''}`} onClick={() => setActiveTab('Kitchen Operations')}>
-            <span className={styles.icon}>🔔</span> Kitchen Operations
+            <span className={styles.icon}>🔪</span> Kitchen Operations
             {(kitchenRequests.filter(r => r.status === 'Pending').length + kitchenReturns.filter(r => r.status === 'Pending').length) > 0 && (
               <span style={{ background: '#ef4444', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '0.5rem' }}>
                 {kitchenRequests.filter(r => r.status === 'Pending').length + kitchenReturns.filter(r => r.status === 'Pending').length}
+              </span>
+            )}
+          </button>
+          <button className={`${styles.navBtn} ${activeTab === 'Eatery Operations' ? styles.active : ''}`} onClick={() => setActiveTab('Eatery Operations')}>
+            <span className={styles.icon}>🏪</span> Eatery Operations
+            {eateryRequests.filter(r => r.status === 'Pending').length > 0 && (
+              <span style={{ background: '#f97316', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '0.5rem' }}>
+                {eateryRequests.filter(r => r.status === 'Pending').length}
               </span>
             )}
           </button>
@@ -238,11 +259,11 @@ export default function StoreDashboard() {
                 <div className={styles.statSub}>Require immediate restocking</div>
               </div>
               <div className={styles.statCard} style={{ background: '#fffbeb', borderLeft: '4px solid #f59e0b' }}>
-                <div className={styles.statLabel}>Pending Kitchen Ops</div>
+                <div className={styles.statLabel}>Pending Ops (Kitchen/Eatery)</div>
                 <div className={styles.statValue} style={{ color: '#d97706' }}>
-                  {kitchenRequests.filter(r => r.status === 'Pending').length + kitchenReturns.filter(r => r.status === 'Pending').length} Action(s)
+                  {kitchenRequests.filter(r => r.status === 'Pending').length + kitchenReturns.filter(r => r.status === 'Pending').length + eateryRequests.filter(r => r.status === 'Pending').length} Action(s)
                 </div>
-                <div className={styles.statSub}>Requests & Returns awaiting approval</div>
+                <div className={styles.statSub}>Awaiting store approval</div>
               </div>
             </div>
 
@@ -625,6 +646,59 @@ export default function StoreDashboard() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* EATERY OPERATIONS TAB */}
+        {activeTab === 'Eatery Operations' && (
+          <div className={styles.panel} style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Incoming Eatery Material Requests (Non-Food)</h2>
+            </div>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Requested By</th>
+                    <th>Material Needed</th>
+                    <th>Category</th>
+                    <th>Volume</th>
+                    <th>Comment</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eateryRequests.map(req => (
+                    <tr key={req._id}>
+                      <td style={{ fontSize: '0.8rem' }}>{new Date(req.createdAt).toLocaleString()}</td>
+                      <td style={{ fontWeight: 600 }}>{req.requestedBy?.username || 'Eatery'}</td>
+                      <td style={{ fontWeight: 600 }}>{req.inventoryItem?.itemName}</td>
+                      <td><span className={`${styles.badge} ${styles.badgeGray}`}>{req.inventoryItem?.category || 'Non-Food'}</span></td>
+                      <td style={{ fontWeight: 800, color: '#f97316' }}>{req.quantityRequested} {req.unit}</td>
+                      <td style={{ fontStyle: 'italic', color: '#64748b' }}>{req.comment || '-'}</td>
+                      <td>
+                        <span className={`${styles.badge} ${req.status === 'Accepted' ? styles.badgeGreen : req.status === 'Declined' ? styles.badgeRed : req.status === 'Declined' ? styles.badgeRed : styles.badgeOrange}`}>
+                          {req.status}
+                        </span>
+                      </td>
+                      <td>
+                        {req.status === 'Pending' ? (
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className={styles.btnSuccess} onClick={() => handleEateryRequestAction(req._id, 'accept')}>Accept</button>
+                            <button className={styles.btnDanger} onClick={() => handleEateryRequestAction(req._id, 'decline')}>Decline</button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Processed by {req.actedUponBy?.username || 'Store'}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {eateryRequests.length === 0 && <tr><td colSpan="8" className={styles.emptyState}>No incoming eatery requests.</td></tr>}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
