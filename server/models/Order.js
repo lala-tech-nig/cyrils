@@ -52,7 +52,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['Cash', 'Card', 'Transfer', 'Online', 'PR', 'Mixed', 'FCMB 1', 'FCMB 2', 'GT BANK'],
+    enum: ['Cash', 'Card', 'Transfer', 'Online', 'PR', 'Mixed', 'FCMB 1', 'FCMB 2', 'Nomba', 'GT BANK'],
     default: 'Cash'
   },
   mixedPayments: {
@@ -61,6 +61,7 @@ const orderSchema = new mongoose.Schema({
     transfer: { type: Number, default: 0 },
     fcmb1: { type: Number, default: 0 },
     fcmb2: { type: Number, default: 0 },
+    nomba: { type: Number, default: 0 },
     gtbank: { type: Number, default: 0 }
   },
   // If PR is used, need a comment and manager approval status

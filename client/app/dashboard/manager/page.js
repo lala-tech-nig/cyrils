@@ -480,6 +480,11 @@ export default function ManagerDashboard() {
                 <div className={styles.statValue} style={{ color: '#6366f1' }}>₦{(stats.fcmb2Total || 0).toLocaleString()}</div>
                 <div className={styles.statSub}>Bank channel receipts</div>
               </div>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #10b981' }}>
+                <div className={styles.statLabel}>Nomba (Today)</div>
+                <div className={styles.statValue} style={{ color: '#10b981' }}>₦{(stats.nombaTotal || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Bank channel receipts</div>
+              </div>
               <div className={styles.statCard} style={{ borderLeft: '4px solid #f59e0b' }}>
                 <div className={styles.statLabel}>GT BANK (Today)</div>
                 <div className={styles.statValue} style={{ color: '#f59e0b' }}>₦{(stats.gtbankTotal || 0).toLocaleString()}</div>
@@ -558,6 +563,7 @@ export default function ManagerDashboard() {
                   <option value="Transfer">Transfer</option>
                   <option value="FCMB 1">FCMB 1</option>
                   <option value="FCMB 2">FCMB 2</option>
+                  <option value="Nomba">Nomba</option>
                   <option value="GT BANK">GT BANK</option>
                   <option value="Mixed">Mixed</option>
                   <option value="Customer Account">Customer Account</option>

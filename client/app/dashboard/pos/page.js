@@ -70,7 +70,7 @@ export default function POSPage() {
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [pendingOrders, setPendingOrders] = useState([]);
-  const [mixedPayments, setMixedPayments] = useState({ cash: '', fcmb1: '', fcmb2: '', gtbank: '' });
+  const [mixedPayments, setMixedPayments] = useState({ cash: '', fcmb1: '', fcmb2: '', nomba: '', gtbank: '' });
   
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountType, setDiscountType] = useState('None');
@@ -278,7 +278,7 @@ export default function POSPage() {
     setCurrentPack(1);
     setTotalPacks(1);
     setPrComment('');
-    setMixedPayments({ cash: '', fcmb1: '', fcmb2: '', gtbank: '' });
+    setMixedPayments({ cash: '', fcmb1: '', fcmb2: '', nomba: '', gtbank: '' });
     setDiscountAmount('');
     setDiscountType('None');
     setDiscountOtp('');
@@ -333,8 +333,9 @@ export default function POSPage() {
       const cashAmt = Number(mixedPayments.cash) || 0;
       const fcmb1Amt = Number(mixedPayments.fcmb1) || 0;
       const fcmb2Amt = Number(mixedPayments.fcmb2) || 0;
+      const nombaAmt = Number(mixedPayments.nomba) || 0;
       const gtbankAmt = Number(mixedPayments.gtbank) || 0;
-      const totalMixed = cashAmt + fcmb1Amt + fcmb2Amt + gtbankAmt;
+      const totalMixed = cashAmt + fcmb1Amt + fcmb2Amt + nombaAmt + gtbankAmt;
       if (totalMixed !== totalAmount) {
         toast.warning(`Mixed payment amounts (₦${totalMixed}) must equal the total amount (₦${totalAmount}).`);
         return;
@@ -391,6 +392,7 @@ export default function POSPage() {
         cash: Number(mixedPayments.cash) || 0,
         fcmb1: Number(mixedPayments.fcmb1) || 0,
         fcmb2: Number(mixedPayments.fcmb2) || 0,
+        nomba: Number(mixedPayments.nomba) || 0,
         gtbank: Number(mixedPayments.gtbank) || 0
       } : undefined,
       salesPersonName: user?.username || 'Unknown Staff'
@@ -686,7 +688,7 @@ export default function POSPage() {
           </div>
 
           <div className={styles.paymentMethods}>
-            {['Cash', 'FCMB 1', 'FCMB 2', 'GT BANK', 'Customer Account', 'Mixed', 'PR'].map(method => (
+            {['Cash', 'FCMB 1', 'FCMB 2', 'Nomba', 'GT BANK', 'Customer Account', 'Mixed', 'PR'].map(method => (
               <button 
                 key={method}
                 className={`${styles.payBtn} ${paymentMethod === method ? styles.selected : ''}`}
@@ -715,9 +717,10 @@ export default function POSPage() {
               <input type="number" placeholder="Cash Amount" value={mixedPayments.cash} onChange={e => setMixedPayments({...mixedPayments, cash: e.target.value})} className={styles.prInput} style={{ marginBottom: 0 }} />
               <input type="number" placeholder="FCMB 1 Amount" value={mixedPayments.fcmb1} onChange={e => setMixedPayments({...mixedPayments, fcmb1: e.target.value})} className={styles.prInput} style={{ marginBottom: 0 }} />
               <input type="number" placeholder="FCMB 2 Amount" value={mixedPayments.fcmb2} onChange={e => setMixedPayments({...mixedPayments, fcmb2: e.target.value})} className={styles.prInput} style={{ marginBottom: 0 }} />
+              <input type="number" placeholder="Nomba Amount" value={mixedPayments.nomba} onChange={e => setMixedPayments({...mixedPayments, nomba: e.target.value})} className={styles.prInput} style={{ marginBottom: 0 }} />
               <input type="number" placeholder="GT BANK Amount" value={mixedPayments.gtbank} onChange={e => setMixedPayments({...mixedPayments, gtbank: e.target.value})} className={styles.prInput} style={{ marginBottom: 0 }} />
-              <div style={{ fontSize: '0.9rem', color: ((Number(mixedPayments.cash)||0) + (Number(mixedPayments.fcmb1)||0) + (Number(mixedPayments.fcmb2)||0) + (Number(mixedPayments.gtbank)||0)) === totalAmount ? '#16a34a' : '#ef4444', textAlign: 'right', fontWeight: 'bold', marginTop: '0.5rem' }}>
-                Remaining: ₦{totalAmount - ((Number(mixedPayments.cash)||0) + (Number(mixedPayments.fcmb1)||0) + (Number(mixedPayments.fcmb2)||0) + (Number(mixedPayments.gtbank)||0))}
+              <div style={{ fontSize: '0.9rem', color: ((Number(mixedPayments.cash)||0) + (Number(mixedPayments.fcmb1)||0) + (Number(mixedPayments.fcmb2)||0) + (Number(mixedPayments.nomba)||0) + (Number(mixedPayments.gtbank)||0)) === totalAmount ? '#16a34a' : '#ef4444', textAlign: 'right', fontWeight: 'bold', marginTop: '0.5rem' }}>
+                Remaining: ₦{totalAmount - ((Number(mixedPayments.cash)||0) + (Number(mixedPayments.fcmb1)||0) + (Number(mixedPayments.fcmb2)||0) + (Number(mixedPayments.nomba)||0) + (Number(mixedPayments.gtbank)||0))}
               </div>
             </div>
           )}

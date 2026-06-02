@@ -54,7 +54,7 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) =>
         return sum;
       }, 0),
       transferReceived: todayOrders.reduce((sum, o) => {
-        if (['Transfer', 'Card', 'FCMB 1', 'FCMB 2', 'GT BANK'].includes(o.paymentMethod)) {
+        if (['Transfer', 'Card', 'FCMB 1', 'FCMB 2', 'Nomba', 'GT BANK'].includes(o.paymentMethod)) {
           return sum + (o.totalAmount || 0);
         }
         if (o.paymentMethod === 'Mixed' && o.mixedPayments) {
@@ -63,6 +63,7 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) =>
             (o.mixedPayments.card || 0) + 
             (o.mixedPayments.fcmb1 || 0) + 
             (o.mixedPayments.fcmb2 || 0) + 
+            (o.mixedPayments.nomba || 0) + 
             (o.mixedPayments.gtbank || 0);
         }
         return sum;
@@ -75,6 +76,11 @@ router.get('/', protect, authorize('Manager', 'SuperAdmin'), async (req, res) =>
       fcmb2Total: todayOrders.reduce((sum, o) => {
         if (o.paymentMethod === 'FCMB 2') return sum + (o.totalAmount || 0);
         if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.fcmb2 || 0);
+        return sum;
+      }, 0),
+      nombaTotal: todayOrders.reduce((sum, o) => {
+        if (o.paymentMethod === 'Nomba') return sum + (o.totalAmount || 0);
+        if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.nomba || 0);
         return sum;
       }, 0),
       gtbankTotal: todayOrders.reduce((sum, o) => {
