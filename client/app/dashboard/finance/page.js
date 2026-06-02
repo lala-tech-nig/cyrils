@@ -18,7 +18,7 @@ export default function FinanceDashboard() {
   const [report, setReport] = useState({ grossRevenue: 0, totalExpenses: 0, netProfit: 0, expensesByCategory: {} });
   const [expenses, setExpenses] = useState([]);
   const [inventory, setInventory] = useState([]);
-  const [timeRange, setTimeRange] = useState('month');
+  const [timeRange, setTimeRange] = useState('today');
 
   // Expense Form
   const [newExpense, setNewExpense] = useState({
@@ -423,17 +423,51 @@ export default function FinanceDashboard() {
           <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className={styles.statsGrid}>
               <div className={styles.statCard}>
-                <div className={styles.statLabel}>Gross Revenue</div>
-                <div className={styles.statValue}>₦{report?.grossRevenue?.toLocaleString()}</div>
+                <div className={styles.statLabel}>Today's Sales (Valid)</div>
+                <div className={styles.statValue}>₦{report?.totalSales?.toLocaleString()}</div>
                 <div className={styles.statSub}>{report?.ordersCount} orders</div>
               </div>
               <div className={styles.statCard}>
-                <div className={styles.statLabel}>Total Expenses</div>
-                <div className={styles.statValue} style={{ color: '#ef4444' }}>₦{report?.totalExpenses?.toLocaleString()}</div>
+                <div className={styles.statLabel}>Total Customers</div>
+                <div className={styles.statValue} style={{ color: '#8b5cf6' }}>{report?.ordersCount}</div>
+                <div className={styles.statSub}>Representing today's footfall</div>
               </div>
-              <div className={styles.statCard} style={{ background: '#ecfdf5', borderColor: '#10b981' }}>
-                <div className={styles.statLabel}>Net Profit</div>
-                <div className={styles.statValue} style={{ color: '#059669' }}>₦{report?.netProfit?.toLocaleString()}</div>
+              <div className={styles.statCard}>
+                <div className={styles.statLabel}>Cash Received (Today)</div>
+                <div className={styles.statValue} style={{ color: '#16a34a' }}>₦{report?.cashReceived?.toLocaleString()}</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statLabel}>Bank Payments (Today)</div>
+                <div className={styles.statValue} style={{ color: '#2563eb' }}>₦{report?.transferReceived?.toLocaleString()}</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statLabel}>Active Staff On-site</div>
+                <div className={styles.statValue}>{attendanceLogs.filter(log => !log.checkOut && new Date(log.date).toDateString() === new Date().toDateString()).length}</div>
+                <div className={styles.statSub}>Out of {report?.staffCount || 0} total</div>
+              </div>
+            </div>
+
+            {/* Bank Channel Breakdown */}
+            <div className={styles.statsGrid}>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #0ea5e9' }}>
+                <div className={styles.statLabel}>FCMB 1 (Today)</div>
+                <div className={styles.statValue} style={{ color: '#0ea5e9' }}>₦{(report?.fcmb1Total || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Bank channel receipts</div>
+              </div>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #6366f1' }}>
+                <div className={styles.statLabel}>FCMB 2 (Today)</div>
+                <div className={styles.statValue} style={{ color: '#6366f1' }}>₦{(report?.fcmb2Total || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Bank channel receipts</div>
+              </div>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #f59e0b' }}>
+                <div className={styles.statLabel}>GT BANK (Today)</div>
+                <div className={styles.statValue} style={{ color: '#f59e0b' }}>₦{(report?.gtbankTotal || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Bank channel receipts</div>
+              </div>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #ef4444' }}>
+                <div className={styles.statLabel}>PR Orders (Today)</div>
+                <div className={styles.statValue} style={{ color: '#ef4444' }}>₦{(report?.prTotal || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Privilege / complimentary</div>
               </div>
             </div>
 

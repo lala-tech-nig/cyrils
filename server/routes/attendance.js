@@ -139,8 +139,8 @@ router.post('/force-checkout/:userId', protect, authorize('SuperAdmin', 'Manager
 });
 
 // @route   GET /api/attendance/report
-// @desc    Get attendance logs for Admin/Manager
-router.get('/report', protect, authorize('SuperAdmin', 'Manager'), async (req, res) => {
+// @desc    Get attendance logs for Admin/Manager/Finance
+router.get('/report', protect, authorize('SuperAdmin', 'Manager', 'Finance'), async (req, res) => {
   try {
     const logs = await Attendance.find().populate('user', 'username role').sort({ date: -1 });
     res.json(logs);

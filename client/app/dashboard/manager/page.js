@@ -468,6 +468,30 @@ export default function ManagerDashboard() {
               </div>
             </div>
 
+            {/* Bank Channel Breakdown */}
+            <div className={styles.statsGrid} style={{ marginTop: '0.75rem' }}>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #0ea5e9' }}>
+                <div className={styles.statLabel}>FCMB 1 (Today)</div>
+                <div className={styles.statValue} style={{ color: '#0ea5e9' }}>₦{(stats.fcmb1Total || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Bank channel receipts</div>
+              </div>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #6366f1' }}>
+                <div className={styles.statLabel}>FCMB 2 (Today)</div>
+                <div className={styles.statValue} style={{ color: '#6366f1' }}>₦{(stats.fcmb2Total || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Bank channel receipts</div>
+              </div>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #f59e0b' }}>
+                <div className={styles.statLabel}>GT BANK (Today)</div>
+                <div className={styles.statValue} style={{ color: '#f59e0b' }}>₦{(stats.gtbankTotal || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Bank channel receipts</div>
+              </div>
+              <div className={styles.statCard} style={{ borderLeft: '4px solid #ef4444' }}>
+                <div className={styles.statLabel}>PR Orders (Today)</div>
+                <div className={styles.statValue} style={{ color: '#ef4444' }}>₦{(stats.prTotal || 0).toLocaleString()}</div>
+                <div className={styles.statSub}>Privilege / complimentary</div>
+              </div>
+            </div>
+
             <div className={styles.twoCol}>
               <div className={styles.panel}>
                 <div className={styles.panelHeader}>

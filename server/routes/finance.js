@@ -3,6 +3,7 @@ const router = express.Router();
 const Expense = require('../models/Expense');
 const Order = require('../models/Order');
 const Inventory = require('../models/Inventory');
+const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
 
 // --- EXPENSES ---
@@ -102,16 +103,66 @@ router.get('/report', protect, authorize('Finance', 'Manager', 'SuperAdmin'), as
     // 3. Net Profit
     const netProfit = grossRevenue - totalExpenses;
 
+    // 4. Payment channel breakdown
+    const totalSales = orders.filter(o => o.paymentMethod !== 'PR' || o.prApproved).reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const cashReceived = orders.reduce((sum, o) => {
+      if (o.paymentMethod === 'Cash') return sum + (o.totalAmount || 0);
+      if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.cash || 0);
+      return sum;
+    }, 0);
+    const transferReceived = orders.reduce((sum, o) => {
+      if (['Transfer', 'Card', 'FCMB 1', 'FCMB 2', 'GT BANK'].includes(o.paymentMethod)) {
+        return sum + (o.totalAmount || 0);
+      }
+      if (o.paymentMethod === 'Mixed' && o.mixedPayments) {
+        return sum + 
+          (o.mixedPayments.transfer || 0) + 
+          (o.mixedPayments.card || 0) + 
+          (o.mixedPayments.fcmb1 || 0) + 
+          (o.mixedPayments.fcmb2 || 0) + 
+          (o.mixedPayments.gtbank || 0);
+      }
+      return sum;
+    }, 0);
+
+    const fcmb1Total = orders.reduce((sum, o) => {
+      if (o.paymentMethod === 'FCMB 1') return sum + (o.totalAmount || 0);
+      if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.fcmb1 || 0);
+      return sum;
+    }, 0);
+    const fcmb2Total = orders.reduce((sum, o) => {
+      if (o.paymentMethod === 'FCMB 2') return sum + (o.totalAmount || 0);
+      if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.fcmb2 || 0);
+      return sum;
+    }, 0);
+    const gtbankTotal = orders.reduce((sum, o) => {
+      if (o.paymentMethod === 'GT BANK') return sum + (o.totalAmount || 0);
+      if (o.paymentMethod === 'Mixed' && o.mixedPayments) return sum + (o.mixedPayments.gtbank || 0);
+      return sum;
+    }, 0);
+    const prTotal = orders.filter(o => o.paymentMethod === 'PR').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+    const staffCount = await User.countDocuments({ isActive: true });
+
     res.json({
       grossRevenue,
       totalExpenses,
       netProfit,
       expensesByCategory,
       ordersCount: orders.length,
-      expensesCount: expenses.length
+      expensesCount: expenses.length,
+      totalSales,
+      cashReceived,
+      transferReceived,
+      fcmb1Total,
+      fcmb2Total,
+      gtbankTotal,
+      prTotal,
+      staffCount
     });
 
   } catch (err) {
+    console.error('FINANCE REPORT ERROR:', err);
     res.status(500).json({ message: 'Server Error' });
   }
 });
